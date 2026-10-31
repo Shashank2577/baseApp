@@ -41,7 +41,9 @@ downstream:
       packages/base_models/android/src/test/kotlin/dev/baseplatform/base_models/SharedModelStoreTest.kt: basemodels/src/test/kotlin/dev/baseplatform/base_models/SharedModelStoreTest.kt
   - repo: PhoneDots              # Flutter, migrating onto the base packages
     files:
-      # Models come from base_models (a git dependency), which carries the catalog.
+      # The shared model store and its catalog, as a path dependency
+      # (packages/base_models), so PhoneDots builds without reaching this repo.
+      packages/base_models/: packages/base_models/
       signing/showcase-test.jks: android/app/showcase-test.jks
       packages/base_design/lib/src/generated/tokens.g.dart: lib/theme/base_tokens.g.dart
   - repo: spreix-notetaker-apps  # React + Capacitor + Electron
