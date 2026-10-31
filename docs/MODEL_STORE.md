@@ -28,11 +28,11 @@ The location comes from `platform.yaml` (`vendor`, `sharedModels`), so every app
 
 Android gives every app private storage and has no equivalent of App Groups (`sharedUserId` is deprecated, and shared external storage can't be read by other apps on Android 11+ without broad permissions that Play rejects). So on Android:
 
-1. Each app keeps its models in its own `filesDir/shared-models`, with the same layout and registry as everywhere else.
+1. Each app keeps its models in its own `noBackupFilesDir/shared-models` (outside Auto Backup), with the same layout and registry as everywhere else.
 2. Each app exposes `BaseModelsProvider` (from `base_models`): a read-only `ContentProvider` guarded by a **signature-level permission**, so only apps signed with the same key can read it. It serves only files the registry lists as complete.
 3. Before downloading, the store asks every sibling (found by the discovery action in `platform.yaml`) for the file, copies it, and verifies the SHA-256. Only if no sibling has it does it go to the network.
 
-The model crosses the network once per device; disk space is used once per app. The requirement: **every app is signed with the same release key** (the release skill handles this).
+The model crosses the network once per device; disk space is used once per app. Sibling copy covers files the store downloads itself (Gemma, the speech packs); SDK-managed models (Desert Ant) are fetched by each app's SDK, so on Android each app still downloads those once. The requirement: **every app is signed with the same release key** (the release skill handles this).
 
 ## Layout and registry
 

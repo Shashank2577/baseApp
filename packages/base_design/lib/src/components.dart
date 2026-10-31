@@ -692,6 +692,7 @@ class HandField extends StatelessWidget {
     this.leading,
     this.keyboardType,
     this.autofocus = false,
+    this.obscure = false,
   });
   final TextEditingController? controller;
   final ValueChanged<String>? onChanged;
@@ -702,6 +703,9 @@ class HandField extends StatelessWidget {
   final Doodle? leading;
   final TextInputType? keyboardType;
   final bool autofocus;
+
+  /// Hides what is typed (tokens, passwords).
+  final bool obscure;
 
   @override
   Widget build(BuildContext context) {
@@ -721,6 +725,9 @@ class HandField extends StatelessWidget {
               onChanged: onChanged,
               onSubmitted: onSubmitted,
               autofocus: autofocus,
+              obscureText: obscure,
+              autocorrect: !obscure,
+              enableSuggestions: !obscure,
               keyboardType: keyboardType,
               maxLines: singleLine ? 1 : null,
               style: style,

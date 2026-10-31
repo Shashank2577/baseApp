@@ -189,6 +189,7 @@ class _TokenFieldState extends State<_TokenField> {
         controller: _token,
         placeholder: 'hf_...',
         singleLine: true,
+        obscure: true,
         leading: Doodle.lock,
         onChanged: (_) => setState(() => _saved = false),
         onSubmitted: (_) => _save(),
