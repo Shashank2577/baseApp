@@ -172,9 +172,13 @@ class IoModelStore extends ModelStore {
   Map<String, dynamic> get _models => ((_registry['models'] as Map?) ?? const {}).cast<String, dynamic>();
 
   @override
-  Future<void> refresh() async {
+  Future<void> refresh() => _refresh(listSiblings: true);
+
+  /// After a registry write only the registry is re-read: asking every sibling
+  /// app (a cross-process call each) on every claim would wake them all.
+  Future<void> _refresh({required bool listSiblings}) async {
     _registry = await _readRegistry();
-    _siblingFiles = await _listSiblings();
+    if (listSiblings) _siblingFiles = await _listSiblings();
     for (final m in catalog.all) {
       final current = _states[m.id];
       if (current != null && _installing.contains(m.id)) continue;
@@ -334,8 +338,16 @@ class IoModelStore extends ModelStore {
     final bundled = spec.sdk!.bundled;
     // A sibling's SDK folder (Android), copied file by file, saves the download
     // when the SDK accepts it; the installer then finds the weights in place.
-    final fromSibling = await _copySdkFromSibling(spec, cancel);
-    if (_offline && !bundled && !fromSibling) throw OfflineException(spec.name);
+    // Only into an empty folder: never over weights the SDK already has.
+    final dir = Directory(pathOf(spec.id));
+    final hadFiles = dir.existsSync() && dir.listSync().any((e) => !p.basename(e.path).startsWith('.'));
+    final fromSibling = !hadFiles && await _copySdkFromSibling(spec, cancel);
+    if (_offline && !bundled && !hadFiles && !fromSibling) throw OfflineException(spec.name);
+    if (_offline && !bundled && (hadFiles || fromSibling)) {
+      // The installer may download; with "never go online" on, trust the folder as it is.
+      final bytes = _dirSize(dir);
+      return {'sdkReady': true, 'sdkBytes': bytes, 'sdkSource': fromSibling ? 'sibling' : 'network', ...?_sdkFileList(dir)};
+    }
     await installer(spec.id, spec.sdk!.key, pathOf(spec.id), (f) {
       if (cancel.cancelled) throw DownloadCancelled();
       _set(spec.id, stateOf(spec.id).copyWith(status: ModelStatus.downloading, progress: f));
@@ -382,8 +394,9 @@ class IoModelStore extends ModelStore {
         }
         return true;
       } on Object {
-        for (final e in dir.listSync().whereType<File>().where((f) => f.path.endsWith('.part'))) {
-          e.deleteSync();
+        // The folder was empty before: remove everything this attempt wrote.
+        for (final e in dir.listSync().where((e) => !p.basename(e.path).startsWith('.'))) {
+          e.deleteSync(recursive: true);
         }
       }
     }
@@ -459,7 +472,9 @@ class IoModelStore extends ModelStore {
   Future<void> _download(ModelFile f, String dest, _Cancel cancel, void Function(int) progress) async {
     final part = File('$dest.part');
     var existing = part.existsSync() ? part.lengthSync() : 0;
-    final client = HttpClient()..autoUncompress = false;
+    final client = HttpClient()
+      ..autoUncompress = false
+      ..connectionTimeout = const Duration(seconds: 30);
     cancel.onCancel = () => client.close(force: true);
     try {
       if (cancel.cancelled) throw DownloadCancelled();
@@ -486,7 +501,8 @@ class IoModelStore extends ModelStore {
         var received = existing;
         var last = DateTime.now();
         try {
-          await for (final chunk in response) {
+          // A stalled server fails the download instead of holding the lock forever.
+          await for (final chunk in response.timeout(const Duration(seconds: 60))) {
             if (cancel.cancelled) throw DownloadCancelled();
             sink.add(chunk);
             received += chunk.length;
@@ -693,7 +709,7 @@ class IoModelStore extends ModelStore {
       }
     });
     _registryQueue = next.catchError((_) {});
-    return next.then((_) => refresh());
+    return next.then((_) => _refresh(listSiblings: false));
   }
 
   Future<Map<String, dynamic>> _readRegistry() async {
