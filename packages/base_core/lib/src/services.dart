@@ -81,7 +81,7 @@ class BaseServices {
       // Stop downloads in progress first, so none finishes after the wipe and
       // re-creates a claim or a ledger entry.
       for (final m in models.catalog.all) {
-        if (models.stateOf(m.id).status == ModelStatus.downloading) models.cancel(m.id);
+        if (models.stateOf(m.id).status == ModelStatus.downloading) models.cancel(m.id, discard: true);
       }
       for (final id in models.claimedByThisApp) {
         await models.release(id);

@@ -16,6 +16,8 @@ void main() {
   var requests = 0;
   var lastRange = '';
   Completer<void>? stall;
+  Completer<void>? stallMidway; // Sends half the file, then waits.
+  var gzipWhenAsked = false;
 
   setUp(() async {
     payload = List<int>.generate(300000, (i) => i % 251);
@@ -28,9 +30,26 @@ void main() {
       final m = RegExp(r'bytes=(\d+)-').firstMatch(lastRange);
       final from = m == null ? 0 : int.parse(m[1]!);
       req.response.statusCode = from > 0 ? 206 : 200;
+      if (gzipWhenAsked && (req.headers.value(HttpHeaders.acceptEncodingHeader) ?? '').contains('gzip')) {
+        req.response.headers.set(HttpHeaders.contentEncodingHeader, 'gzip');
+        req.response.add(gzip.encode(payload.sublist(from)));
+        await req.response.close();
+        return;
+      }
       req.response.contentLength = payload.length - from;
-      req.response.add(payload.sublist(from));
-      await req.response.close();
+      try {
+        var at = from;
+        if (stallMidway != null && from < payload.length ~/ 2) {
+          at = payload.length ~/ 2;
+          req.response.add(payload.sublist(from, at));
+          await req.response.flush();
+          await stallMidway!.future;
+        }
+        req.response.add(payload.sublist(at));
+        await req.response.close();
+      } on Object {
+        // The client hung up (a cancel).
+      }
     });
     root = await Directory.systemTemp.createTemp('shared-models-');
   });
@@ -316,6 +335,36 @@ Future<void> main(List<String> args) async {
     expect(a.claimedByThisApp, contains('test.tiny'));
     await a.release('test.tiny');
     expect(a.claimedByThisApp, isEmpty);
+  });
+
+  test('a host that would gzip the file still gets asked for the file itself', () async {
+    gzipWhenAsked = true;
+    final a = await open('app.a');
+    await a.ensure('test.tiny');
+    expect(File(a.pathOf('test.tiny', 'weights.bin')).readAsBytesSync(), payload);
+  });
+
+  test('a cancel keeps the partial download to resume; a wipe cancel deletes it', () async {
+    final a = await open('app.a');
+    final part = File('${a.pathOf('test.tiny', 'weights.bin')}.part');
+    Future<void> startAndCancel({required bool discard}) async {
+      stallMidway = Completer<void>();
+      final run = a.ensure('test.tiny');
+      while (!part.existsSync() || part.lengthSync() == 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      a.cancel('test.tiny', discard: discard);
+      await expectLater(run.timeout(const Duration(seconds: 5)), throwsA(isA<DownloadCancelled>()));
+      stallMidway!.complete();
+      stallMidway = null;
+    }
+
+    await startAndCancel(discard: false);
+    expect(part.existsSync(), isTrue, reason: 'kept for a resume');
+    part.deleteSync(); // Start over, so the next download stalls midway again.
+    await startAndCancel(discard: true);
+    expect(part.existsSync(), isFalse, reason: 'wipe leaves no partial behind');
+    expect(Directory(a.pathOf('test.tiny')).listSync().map((e) => p.basename(e.path)), isNot(contains('weights.bin')));
   });
 
   test('the shared catalog is valid', () {

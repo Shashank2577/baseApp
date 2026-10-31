@@ -230,7 +230,8 @@ class WebModelStore extends ModelStore {
   }
 
   @override
-  void cancel(String id) {
+  void cancel(String id, {bool discard = false}) {
+    // A cancelled cache.put never commits, so there is no partial to discard.
     if (_installing.contains(id)) _cancelled.add(id);
     _cancels[id]?.abort();
   }

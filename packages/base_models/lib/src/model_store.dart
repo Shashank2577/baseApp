@@ -82,7 +82,9 @@ abstract class ModelStore extends ChangeNotifier {
   /// Throws [OfflineException] when "never go online" blocks a needed download.
   Future<void> ensure(String id);
 
-  void cancel(String id);
+  /// Stops [id]'s install. A partial download is kept so a later [ensure]
+  /// resumes it, unless [discard] (wipe), which deletes it.
+  void cancel(String id, {bool discard = false});
 
   /// This app no longer needs the model. The files go when no app needs them.
   Future<void> release(String id);

@@ -87,6 +87,9 @@ class _Cancel {
   bool _cancelled = false;
   bool get cancelled => _cancelled;
 
+  /// Delete the partial download instead of keeping it for a resume (wipe).
+  bool discard = false;
+
   /// Aborts whatever is in flight (an HTTP request stalled before its headers
   /// or between chunks would otherwise never notice the flag).
   void Function()? onCancel;
@@ -245,6 +248,8 @@ class IoModelStore extends ModelStore {
         await _register(spec, recorded);
       } on DownloadCancelled {
         _installing.remove(spec.id);
+        // Still holding the download lock: no other app is writing here.
+        if (cancel.discard) _deletePartials(spec.id);
         _set(spec.id, ModelState.absent);
         rethrow;
       } catch (e) {
@@ -335,6 +340,20 @@ class IoModelStore extends ModelStore {
     return false;
   }
 
+  /// Deletes `.part` files of [id], and the folder when no app has the model.
+  void _deletePartials(String id) {
+    final dir = Directory(pathOf(id));
+    if (!dir.existsSync()) return;
+    for (final f in dir.listSync().whereType<File>().where((f) => f.path.endsWith('.part'))) {
+      f.deleteSync();
+    }
+    if (_models[id] == null) {
+      for (final e in dir.listSync()) {
+        if (p.basename(e.path) != '.download.lock') e.deleteSync(recursive: true);
+      }
+    }
+  }
+
   /// Resumable download through `<dest>.part`, verified by SHA-256 when known.
   Future<void> _download(ModelFile f, String dest, _Cancel cancel, void Function(int) progress) async {
     final part = File('$dest.part');
@@ -345,6 +364,9 @@ class IoModelStore extends ModelStore {
       if (cancel.cancelled) throw DownloadCancelled();
       final request = await client.getUrl(Uri.parse(f.url));
       options.headersFor?.call(f).forEach(request.headers.set);
+      // The catalog's checksum and the Range offsets are of the file itself,
+      // so ask for it uncompressed (HttpClient asks for gzip by default).
+      request.headers.set(HttpHeaders.acceptEncodingHeader, 'identity');
       if (existing > 0) request.headers.set(HttpHeaders.rangeHeader, 'bytes=$existing-');
       final response = await request.close();
       if (response.statusCode == 416) {
@@ -404,7 +426,12 @@ class IoModelStore extends ModelStore {
   }
 
   @override
-  void cancel(String id) => _cancels[id]?.cancel();
+  void cancel(String id, {bool discard = false}) {
+    final c = _cancels[id];
+    if (c == null) return;
+    c.discard = c.discard || discard;
+    c.cancel();
+  }
 
   @override
   Future<void> touchClaims() => _mutate((models) {
