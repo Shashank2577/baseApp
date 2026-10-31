@@ -185,6 +185,26 @@ void main() {
     expect(s.sourceOf('desertant.ear'), 'network');
   });
 
+  test('claims of apps not seen for a long time are pruned; our own never', () async {
+    final a = await open('app.a');
+    final b = await open('app.b');
+    await a.ensure('test.tiny');
+    await b.ensure('test.tiny');
+    // b was uninstalled long ago: age its claim.
+    final reg = File('${root.path}/registry.json');
+    final json = jsonDecode(reg.readAsStringSync()) as Map;
+    json['models']['test.tiny']['users']['app.b'] = '2020-01-01T00:00:00Z';
+    json['models']['test.tiny']['users']['app.a'] = '2020-01-01T00:00:00Z';
+    reg.writeAsStringSync(jsonEncode(json));
+    await a.pruneStaleClaims(const Duration(days: 180));
+    expect(a.stateOf('test.tiny').users, {'app.a'});
+    await a.touchClaims();
+    final seen = DateTime.parse(((jsonDecode(reg.readAsStringSync()) as Map)['models']['test.tiny']['users'] as Map)['app.a'] as String);
+    expect(DateTime.now().toUtc().difference(seen).inMinutes, lessThan(1));
+    await a.release('test.tiny');
+    expect(Directory(a.pathOf('test.tiny')).existsSync(), isFalse);
+  });
+
   test('the shared catalog is valid', () {
     final c = ModelCatalog();
     expect(c.all.length, greaterThan(20));

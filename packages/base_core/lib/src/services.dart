@@ -26,7 +26,7 @@ class BaseServices {
     bool useNativeLocation = true,
     AiRuntime? ai,
   }) async {
-    final json = store ?? await JsonStore.open();
+    final json = store ?? await JsonStore.open(namespace: config.appId);
     final settings = await BaseSettings.load(json);
     final ledger = await Ledger.load(json);
     final runtime = ai ?? AiRuntime.forPlatform(nativeBridges: config.nativeAi);
@@ -44,6 +44,10 @@ class BaseServices {
       ),
     );
     if (!runtime.isDemo) await runtime.attachStore(models.location.path);
+    // Show other apps this one is still installed, and forget apps that have
+    // not been opened for half a year (likely uninstalled).
+    await models.touchClaims();
+    await models.pruneStaleClaims(const Duration(days: 180));
     return BaseServices._(config, json, settings, ledger, models, runtime);
   }
 

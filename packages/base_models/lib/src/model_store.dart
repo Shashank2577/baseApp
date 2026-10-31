@@ -84,6 +84,15 @@ abstract class ModelStore extends ChangeNotifier {
   /// null when unknown.
   String? sourceOf(String id);
 
+  /// Refreshes this app's claim time on models it already uses, so other apps
+  /// can tell it is still installed. BaseServices calls this at startup.
+  Future<void> touchClaims();
+
+  /// Drops other apps' claims not refreshed for [maxAge] (an app uninstalled
+  /// without releasing its models can't remove its own claim). Files are only
+  /// deleted later, when the remaining users release the model.
+  Future<void> pruneStaleClaims(Duration maxAge);
+
   /// Bytes of every model in the shared store, all apps together.
   int get bytesOnDisk;
 

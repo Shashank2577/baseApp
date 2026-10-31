@@ -5,7 +5,8 @@ import 'package:path_provider/path_provider.dart';
 
 import 'json_store.dart';
 
-Future<JsonStore> openStore() async {
+// Each app already has its own support folder on device, so the namespace is unused here.
+Future<JsonStore> openStore(String namespace) async {
   final support = await getApplicationSupportDirectory();
   final data = Directory('${support.path}/data')..createSync(recursive: true);
   final files = Directory('${support.path}/files')..createSync(recursive: true);

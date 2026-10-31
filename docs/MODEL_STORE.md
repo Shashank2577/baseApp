@@ -67,6 +67,7 @@ Rules the code follows (`packages/base_models/lib/src/store_io.dart`):
 - **Two apps at once:** the downloading app holds `<model>/.download.lock`. A second app sees the lock, shows "another app is downloading this", and picks the model up when it is ready instead of downloading it again. Registry writes are read-modify-write under `.registry.lock`, written to a temp file and renamed.
 - **"Never go online"** (privacy page) makes every needed download fail with `OfflineException`; models already on the device keep working.
 - **Release** removes this app from `users`; the files go when `users` is empty. **Delete everywhere** removes the model for all apps.
+- **Uninstalled apps** can't release their claims. Every app refreshes its claim times at startup, and claims not refreshed for 180 days are dropped. The files then go when the remaining users release the model; an app that comes back simply downloads it again.
 - A damaged `registry.json` is treated as empty rather than crashing every app.
 
 ## SDK-managed models (Desert Ant)

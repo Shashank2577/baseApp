@@ -90,7 +90,9 @@ class WebModelStore extends ModelStore {
     }
     if (!stateOf(id).isReady) {
       if (spec.source == ModelSource.sdk) throw UnsupportedError('${spec.name} needs its native SDK; it cannot run in a browser.');
-      if (options.offline?.call() ?? false) throw OfflineException(spec.name);
+      // Files can be cached while the registry entry is missing (the page closed
+      // between the two writes); only refuse when something must be fetched.
+      if ((options.offline?.call() ?? false) && !await _cached(spec)) throw OfflineException(spec.name);
       final cache = await web.window.caches.open(_cacheName).toDart;
       _installing.add(id);
       _set(id, const ModelState(ModelStatus.downloading));
@@ -184,6 +186,31 @@ class WebModelStore extends ModelStore {
 
   @override
   void cancel(String id) => _cancels[id]?.abort();
+
+  @override
+  Future<void> touchClaims() async {
+    final reg = _readRegistry();
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (final e in reg.values.cast<Map>()) {
+      final users = e['users'] as Map?;
+      if (users != null && users.containsKey(options.appId)) users[options.appId] = now;
+    }
+    _writeRegistry(reg);
+  }
+
+  @override
+  Future<void> pruneStaleClaims(Duration maxAge) async {
+    final reg = _readRegistry();
+    final cutoff = DateTime.now().toUtc().subtract(maxAge);
+    for (final e in reg.values.cast<Map>()) {
+      (e['users'] as Map?)?.removeWhere((app, seen) {
+        final at = DateTime.tryParse('$seen');
+        return app != options.appId && at != null && at.isBefore(cutoff);
+      });
+    }
+    _writeRegistry(reg);
+    await refresh();
+  }
 
   @override
   Future<void> release(String id) async {

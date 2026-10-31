@@ -255,7 +255,7 @@ class IoModelStore extends ModelStore {
         if (total > 0) _set(spec.id, stateOf(spec.id).copyWith(progress: ((done + received) / total).clamp(0, 1)));
       }
 
-      final fromSibling = await _copyFromSibling(spec, f, dest);
+      final fromSibling = await _copyFromSibling(spec, f, dest, cancel);
       if (!fromSibling) {
         if (_offline) throw OfflineException(spec.name);
         await _download(f, dest, cancel, progress);
@@ -267,15 +267,23 @@ class IoModelStore extends ModelStore {
     return {'files': files};
   }
 
-  Future<bool> _copyFromSibling(ModelSpec spec, ModelFile f, String dest) async {
+  Future<bool> _copyFromSibling(ModelSpec spec, ModelFile f, String dest, _Cancel cancel) async {
     final s = siblings;
     if (s == null) return false;
     for (final authority in await s.authorities()) {
+      if (cancel.cancelled) throw DownloadCancelled();
       try {
         await s.copy(authority, spec.id, f.name, '$dest.part');
+        // The native copy can't be interrupted; honour a cancel before accepting it.
+        if (cancel.cancelled) {
+          File('$dest.part').deleteSync();
+          throw DownloadCancelled();
+        }
         await _verify(f, File('$dest.part'));
         await File('$dest.part').rename(dest);
         return true;
+      } on DownloadCancelled {
+        rethrow;
       } catch (_) {
         // That sibling doesn't have it (or it was damaged); try the next, then the network.
         final part = File('$dest.part');
@@ -346,6 +354,27 @@ class IoModelStore extends ModelStore {
 
   @override
   void cancel(String id) => _cancels[id]?.cancelled = true;
+
+  @override
+  Future<void> touchClaims() => _mutate((models) {
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (final entry in models.values.cast<Map>()) {
+      final users = entry['users'] as Map?;
+      if (users != null && users.containsKey(options.appId)) users[options.appId] = now;
+    }
+  });
+
+  @override
+  Future<void> pruneStaleClaims(Duration maxAge) => _mutate((models) {
+    final cutoff = DateTime.now().toUtc().subtract(maxAge);
+    for (final entry in models.values.cast<Map>()) {
+      (entry['users'] as Map?)?.removeWhere((app, seen) {
+        if (app == options.appId) return false;
+        final at = DateTime.tryParse('$seen');
+        return at != null && at.isBefore(cutoff);
+      });
+    }
+  });
 
   @override
   Future<void> release(String id) => _mutate((models) {

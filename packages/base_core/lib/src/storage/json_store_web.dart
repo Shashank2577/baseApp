@@ -4,13 +4,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'json_store.dart';
 
-Future<JsonStore> openStore() async => _PrefsStore(await SharedPreferences.getInstance());
+Future<JsonStore> openStore(String namespace) async => _PrefsStore(await SharedPreferences.getInstance(), 'base.$namespace.');
 
 class _PrefsStore implements JsonStore {
-  _PrefsStore(this._prefs);
+  _PrefsStore(this._prefs, this._ns);
 
   final SharedPreferences _prefs;
-  static const _ns = 'base.';
+  /// Per app: apps on the same origin share localStorage.
+  final String _ns;
 
   @override
   String? get filesDir => null;

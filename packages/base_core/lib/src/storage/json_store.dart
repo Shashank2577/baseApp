@@ -3,7 +3,9 @@ import 'json_store_io.dart' if (dart.library.js_interop) 'json_store_web.dart' a
 /// Small persistent JSON documents keyed by name (settings, the ledger,
 /// each app's own data). Files on device, browser storage on web.
 abstract class JsonStore {
-  static Future<JsonStore> open() => impl.openStore();
+  /// [namespace] keeps each app's data apart where apps can share storage
+  /// (several apps served from one web origin). Use the app id.
+  static Future<JsonStore> open({String namespace = 'app'}) => impl.openStore(namespace);
 
   Future<Object?> read(String key);
 
