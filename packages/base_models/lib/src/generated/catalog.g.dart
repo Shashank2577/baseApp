@@ -214,7 +214,7 @@ const generatedCatalog = <ModelSpec>[
     platforms: {'android', 'ios'},
     source: ModelSource.sdk,
     approxBytes: 2000000,
-    sdk: SdkRef('desertant', '4.2.1', 'tongue'),
+    sdk: SdkRef('desertant', '4.2.1', 'tongue', bundled: true),
   ),
   ModelSpec(
     id: 'desertant.emo',

@@ -135,6 +135,36 @@ void main() {
     expect(s.isReady('test.tiny'), isFalse);
   });
 
+  test('a model another app deleted after we saw it is installed again, not claimed', () async {
+    final a = await open('app.a');
+    final b = await open('app.b');
+    await a.ensure('test.tiny');
+    await b.refresh();
+    expect(b.isReady('test.tiny'), isTrue);
+    await a.release('test.tiny'); // the last user lets go: files and entry are gone
+    await b.ensure('test.tiny'); // b's view was stale; it must not "claim" a missing entry
+    expect(b.isReady('test.tiny'), isTrue);
+    expect(File(b.pathOf('test.tiny', 'weights.bin')).existsSync(), isTrue);
+    expect(b.stateOf('test.tiny').users, {'app.b'});
+  });
+
+  test('a bundled SDK model installs offline and is not counted as network', () async {
+    final s = await ModelStore.open(
+      StoreOptions(
+        appId: 'app.a',
+        catalog: ModelCatalog(),
+        rootOverride: root.path,
+        useNativeLocation: false,
+        offline: () => true,
+        sdkInstaller: (id, key, dir, progress) async => progress(1),
+      ),
+    );
+    await s.ensure('desertant.tongue');
+    expect(s.isReady('desertant.tongue'), isTrue);
+    expect(s.sourceOf('desertant.tongue'), 'bundled');
+    await expectLater(s.ensure('desertant.ear'), throwsA(isA<OfflineException>()));
+  });
+
   test('the shared catalog is valid', () {
     final c = ModelCatalog();
     expect(c.all.length, greaterThan(20));

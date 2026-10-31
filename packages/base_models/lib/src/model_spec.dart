@@ -23,12 +23,15 @@ class ModelFile {
 
 /// A vendor SDK that manages its own weights.
 class SdkRef {
-  const SdkRef(this.name, this.version, this.key);
+  const SdkRef(this.name, this.version, this.key, {this.bundled = false});
   final String name;
   final String version;
 
   /// The SDK's own name for the model, e.g. "voz".
   final String key;
+
+  /// Shipped inside the app with the SDK (Tongue): installing it fetches nothing.
+  final bool bundled;
 }
 
 /// A model in the shared catalog (catalog/models.json).

@@ -53,7 +53,10 @@ class BaseServices {
     final wasOnDevice = models.isReady(id);
     final wasMine = models.stateOf(id).users.contains(config.appId);
     await models.ensure(id);
-    if (wasOnDevice || models.sourceOf(id) == 'sibling') {
+    final source = models.sourceOf(id);
+    if (!wasOnDevice && source == 'bundled') {
+      ledger.record('model', '${spec.name} is built into the app');
+    } else if (wasOnDevice || source == 'sibling') {
       // Shared in place, or copied from a sibling app on this device: no network.
       if (!wasMine) {
         ledger

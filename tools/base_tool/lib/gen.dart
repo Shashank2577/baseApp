@@ -212,7 +212,8 @@ String dartCatalog(Map catalog) {
     if (m['approxBytes'] != null) b.writeln('    approxBytes: ${m['approxBytes']},');
     final sdk = m['sdk'] as Map?;
     if (sdk != null) {
-      b.writeln('    sdk: SdkRef(${_q(sdk['name'] as String)}, ${_q(sdk['version'] as String)}, ${_q(sdk['key'] as String)}),');
+      final bundled = sdk['bundled'] == true ? ', bundled: true' : '';
+      b.writeln('    sdk: SdkRef(${_q(sdk['name'] as String)}, ${_q(sdk['version'] as String)}, ${_q(sdk['key'] as String)}$bundled),');
     }
     final files = (m['files'] as List).cast<Map>();
     if (files.isNotEmpty) {

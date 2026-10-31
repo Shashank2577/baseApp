@@ -115,7 +115,10 @@ class IoModelStore extends ModelStore {
   @override
   String? sourceOf(String id) {
     final files = ((_models[id] as Map?)?['files'] as Map?)?.values.cast<Map>() ?? const <Map>[];
-    if (files.isEmpty) return (_models[id] as Map?)?['sdkReady'] == true ? 'network' : null;
+    if (files.isEmpty) {
+      final entry = _models[id] as Map?;
+      return entry?['sdkReady'] == true ? (entry?['sdkSource'] as String? ?? 'network') : null;
+    }
     return files.any((f) => f['source'] == 'network') ? 'network' : 'sibling';
   }
 
@@ -174,10 +177,8 @@ class IoModelStore extends ModelStore {
 
   Future<void> _ensure(ModelSpec spec) async {
     await refresh();
-    if (stateOf(spec.id).isReady) {
-      await _claim(spec.id);
-      return;
-    }
+    // Claimed under the lock; if another app deleted it in between, install it again.
+    if (stateOf(spec.id).isReady && await _claim(spec.id)) return;
     final dir = Directory(pathOf(spec.id))..createSync(recursive: true);
     final lockFile = await File(p.join(dir.path, '.download.lock')).open(mode: FileMode.append);
     try {
@@ -192,16 +193,12 @@ class IoModelStore extends ModelStore {
           final entry = (await _readRegistry())['models']?[spec.id] as Map?;
           if (entry != null && _filesPresent(spec, entry)) {
             await refresh();
-            await _claim(spec.id);
-            return;
+            if (await _claim(spec.id)) return;
           }
         }
       }
       await refresh();
-      if (stateOf(spec.id).isReady) {
-        await _claim(spec.id);
-        return;
-      }
+      if (stateOf(spec.id).isReady && await _claim(spec.id)) return;
       final cancel = _cancels[spec.id] = _Cancel();
       _installing.add(spec.id);
       _set(spec.id, ModelState(ModelStatus.downloading, progress: 0, users: stateOf(spec.id).users));
@@ -235,12 +232,13 @@ class IoModelStore extends ModelStore {
   Future<Map<String, dynamic>> _installSdk(ModelSpec spec, _Cancel cancel) async {
     final installer = options.sdkInstaller;
     if (installer == null) throw StateError('${spec.name} is installed by its SDK, and this app has no SdkInstaller wired up.');
-    if (_offline) throw OfflineException(spec.name);
+    final bundled = spec.sdk!.bundled;
+    if (_offline && !bundled) throw OfflineException(spec.name);
     await installer(spec.id, spec.sdk!.key, pathOf(spec.id), (f) {
       if (cancel.cancelled) throw DownloadCancelled();
       _set(spec.id, stateOf(spec.id).copyWith(status: ModelStatus.downloading, progress: f));
     });
-    return {'sdkReady': true, 'sdkBytes': _dirSize(Directory(pathOf(spec.id)))};
+    return {'sdkReady': true, 'sdkBytes': _dirSize(Directory(pathOf(spec.id))), 'sdkSource': bundled ? 'bundled' : 'network'};
   }
 
   Future<Map<String, dynamic>> _installFiles(ModelSpec spec, _Cancel cancel) async {
@@ -367,11 +365,18 @@ class IoModelStore extends ModelStore {
     if (dir.existsSync()) dir.deleteSync(recursive: true);
   }
 
-  Future<void> _claim(String id) => _mutate((models) {
-    final entry = models[id] as Map?;
-    if (entry == null) return;
-    ((entry['users'] ??= <String, dynamic>{}) as Map)[options.appId] = DateTime.now().toUtc().toIso8601String();
-  });
+  /// Adds this app to the model's users under the registry lock. False when
+  /// the entry vanished meanwhile (the last other user released it).
+  Future<bool> _claim(String id) async {
+    var claimed = false;
+    await _mutate((models) {
+      final entry = models[id] as Map?;
+      if (entry == null) return;
+      ((entry['users'] ??= <String, dynamic>{}) as Map)[options.appId] = DateTime.now().toUtc().toIso8601String();
+      claimed = true;
+    });
+    return claimed;
+  }
 
   Future<void> _register(ModelSpec spec, Map<String, dynamic> recorded) => _mutate((models) {
     final now = DateTime.now().toUtc().toIso8601String();

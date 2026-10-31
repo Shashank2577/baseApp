@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:base_design/base_design.dart';
 import 'package:base_models/base_models.dart';
 import 'package:flutter/material.dart';
@@ -137,11 +138,15 @@ class _ModelRow extends StatelessWidget {
   Future<void> _remove(BuildContext context) async {
     final s = BaseScope.of(context);
     final others = s.models.stateOf(spec.id).users.where((u) => u != s.config.appId).length;
+    // On iOS the Desert Ant SDK stores weights in its own folder, not in the shared store.
+    final sdkKeepsOwnCopy = spec.source == ModelSource.sdk && defaultTargetPlatform == TargetPlatform.iOS;
     final ok = await confirmSheet(
       context,
       title: 'remove ${spec.name}?',
       body: others > 0
           ? '$others other app${others == 1 ? ' uses' : 's use'} it, so the file stays on this device for them. ${s.config.name} just stops using it.'
+          : sdkKeepsOwnCopy
+          ? 'Its SDK keeps the weights in its own folder on this device, so removing it here does not free that space. ${s.config.name} just stops using it.'
           : 'No other app uses it, so ${formatBytes(spec.bytes)} is freed. You can download it again later.',
       confirm: 'remove',
     );
