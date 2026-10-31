@@ -17,6 +17,8 @@ pubspec_overrides.yaml
 **/android/app/.cxx/
 **/android/key.properties
 *.jks
+# The public vendor test key is meant to be committed (signing/README.md); real keys never are.
+!signing/showcase-test.jks
 *.keystore
 
 # iOS / macOS

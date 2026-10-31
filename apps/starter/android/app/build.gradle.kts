@@ -35,6 +35,8 @@ android {
         // The vendor's shared test key (baseApp signing/README.md): every build of
         // every app is signed alike, so sideloaded builds update in place and share
         // models. Public: never publish to a store with it.
+        // The key file isn't committed (keys never are): put it at signing/showcase-test.jks
+        // locally, or set the ANDROID_KEYSTORE_* secrets in CI. Without it, the debug key is used.
         create("vendorTest") {
             storeFile = rootProject.file("../../../signing/showcase-test.jks")
             storePassword = "phonedots-test"
@@ -55,11 +57,12 @@ android {
     buildTypes {
         // Every app of the vendor must be signed with the SAME key: the
         // shared-model permission is signature-level.
+        val vendor = signingConfigs.getByName("vendorTest").takeIf { it.storeFile?.exists() == true }
         debug {
-            signingConfig = signingConfigs.getByName("vendorTest")
+            signingConfig = vendor ?: signingConfigs.getByName("debug")
         }
         release {
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("vendorTest")
+            signingConfig = signingConfigs.findByName("release") ?: vendor ?: signingConfigs.getByName("debug")
         }
     }
 }
