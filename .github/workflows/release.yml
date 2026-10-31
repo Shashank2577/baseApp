@@ -1,0 +1,172 @@
+name: Release
+
+# Tag <app>-v<version> (e.g. starter-v1.2.0), or run by hand.
+on:
+  push:
+    tags: ['*-v*']
+  workflow_dispatch:
+    inputs:
+      app:
+        description: App folder under apps/
+        required: true
+        default: starter
+      version:
+        description: Version (1.2.0)
+        required: true
+      publish:
+        description: Create a GitHub release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: 3.47.9
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.v.outputs.app }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME}"; APP="${TAG%-v*}"; VERSION="${TAG##*-v}"
+          else
+            APP="${{ inputs.app }}"; VERSION="${{ inputs.version }}"
+          fi
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Bad version: $VERSION"; exit 1; }
+          [[ "$APP" =~ ^[a-z][a-z0-9_]+$ ]] || { echo "Bad app: $APP"; exit 1; }
+          echo "app=$APP" >> "$GITHUB_OUTPUT"; echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
+      - run: flutter pub get
+      - run: ./base gen --check && ./base check
+      - run: flutter analyze && flutter test packages/base_design packages/base_models packages/base_core apps/${{ needs.prepare.outputs.app }}
+
+  android-web-linux:
+    needs: [prepare, check]
+    runs-on: ubuntu-latest
+    env:
+      APP: ${{ needs.prepare.outputs.app }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev
+      - run: flutter pub get
+      - name: Android (signed with the vendor's shared key when the secrets exist)
+        working-directory: apps/${{ env.APP }}
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          SUFFIX=""
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          else
+            SUFFIX="-UNSIGNED"
+          fi
+          flutter build apk --release --target-platform android-arm64 --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
+          flutter build appbundle --release --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/out/$APP-$VERSION-android-arm64$SUFFIX.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/out/$APP-$VERSION-android$SUFFIX.aab"
+      - name: Web and Linux
+        working-directory: apps/${{ env.APP }}
+        run: |
+          flutter build web --release --base-href "/$APP/" --build-name "$VERSION"
+          flutter build linux --release --build-name "$VERSION"
+          tar -czf "$GITHUB_WORKSPACE/out/$APP-$VERSION-web.tar.gz" -C build/web .
+          tar -czf "$GITHUB_WORKSPACE/out/$APP-$VERSION-linux-x64.tar.gz" -C build/linux/x64/release/bundle .
+      - uses: actions/upload-artifact@v4
+        with: { name: linux-hosted, path: out/*, if-no-files-found: error }
+
+  apple:
+    needs: [prepare, check]
+    runs-on: macos-latest
+    env:
+      APP: ${{ needs.prepare.outputs.app }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
+      - run: flutter pub get
+      - name: macOS and iOS
+        working-directory: apps/${{ env.APP }}
+        shell: bash
+        run: |
+          # Signing and notarisation need the Apple secrets (see the release skill);
+          # until they exist the artifacts are labelled UNSIGNED.
+          flutter build macos --release --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
+          flutter build ios --release --no-codesign --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          ditto -c -k --keepParent build/macos/Build/Products/Release/*.app "$GITHUB_WORKSPACE/out/$APP-$VERSION-macos-UNSIGNED.zip"
+          ditto -c -k --keepParent build/ios/iphoneos/Runner.app "$GITHUB_WORKSPACE/out/$APP-$VERSION-ios-UNSIGNED.zip"
+      - uses: actions/upload-artifact@v4
+        with: { name: apple, path: out/*, if-no-files-found: error }
+
+  windows:
+    needs: [prepare, check]
+    runs-on: windows-latest
+    env:
+      APP: ${{ needs.prepare.outputs.app }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
+      - run: flutter pub get
+      - name: Windows
+        working-directory: apps/${{ env.APP }}
+        shell: bash
+        run: |
+          flutter build windows --release --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          7z a "$GITHUB_WORKSPACE/out/$APP-$VERSION-windows-x64-UNSIGNED.zip" ./build/windows/x64/runner/Release/*
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: out/*, if-no-files-found: error }
+
+  publish:
+    needs: [prepare, android-web-linux, apple, windows]
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    env:
+      APP: ${{ needs.prepare.outputs.app }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Checksums and release
+        working-directory: out
+        shell: bash
+        run: |
+          sha256sum ./* > SHA256SUMS.txt
+          FLAGS=""
+          NOTES="$APP $VERSION. Verify downloads with SHA256SUMS.txt."
+          if ls | grep -qE 'UNSIGNED|DEBUG' || [[ "$VERSION" == *-* ]]; then
+            FLAGS="--prerelease"
+            NOTES="$NOTES Some artifacts are UNSIGNED: for testing only."
+          fi
+          TARGET=""
+          [ "${{ github.event_name }}" = "workflow_dispatch" ] && TARGET="--target ${{ github.sha }}"
+          gh release create "$APP-v$VERSION" ./* --repo "${{ github.repository }}" --title "$APP $VERSION" --notes "$NOTES" $FLAGS $TARGET

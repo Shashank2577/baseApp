@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Entry point for the platform tool: ./base gen | new | check | sync
+set -e
+cd "$(dirname "$0")"
+exec dart run tools/base_tool/bin/base.dart "$@"

@@ -1,0 +1,30 @@
+# Flutter / Dart
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/ephemeral/
+.packages
+pubspec_overrides.yaml
+*.iml
+.idea/
+.vscode/
+.DS_Store
+
+# Android
+**/android/local.properties
+**/android/.gradle/
+**/android/app/.cxx/
+**/android/key.properties
+*.jks
+*.keystore
+
+# iOS / macOS
+**/Pods/
+**/.symlinks/
+**/xcuserdata/
+**/Flutter/Generated.xcconfig
+**/Flutter/flutter_export_environment.sh
+
+# Release output
+out/

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Shared model store (platform.yaml). On macOS a team-prefixed group (TEAMID.group...) also works. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.showcase.shared</string>
+	</array>
+	<!-- Model downloads. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+</dict>
+</plist>

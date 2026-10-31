@@ -1,0 +1,40 @@
+# The one place that names the company and wires the shared model store.
+# Every app built from this repo reads these values (through the generator and
+# the new-app tool). Change them once, before shipping the first app, because the
+# shared model store location is derived from them and moving it later means
+# every installed app downloads its models again.
+
+vendor:
+  name: Showcase Labs            # shown in folder names on desktop
+  id: com.showcase               # reverse-DNS prefix for bundle / application ids
+  slug: showcase                 # lowercase, used in Linux paths
+
+sharedModels:
+  # Folder name inside the per-platform shared location (see docs/MODEL_STORE.md).
+  folder: SharedModels
+  # iOS and macOS: the App Group every app joins. It must be registered in the
+  # Apple developer account and added to each app's entitlements.
+  appleAppGroup: group.com.showcase.shared
+  # Android: the signature-level permission that guards the sibling-copy
+  # provider. All apps must be signed with the same key for it to work.
+  androidPermission: com.showcase.permission.SHARED_MODELS
+  androidDiscoveryAction: com.showcase.action.SHARED_MODELS
+
+# Repos that are not Flutter apps but share the design tokens and the model
+# catalog. `./base sync` copies the generated files into them (see the
+# sync-downstream skill). Paths are relative to this repo's parent folder.
+downstream:
+  - repo: Android-Showcase       # Burrow, Kotlin + Compose
+    files:
+      # Outside the source set until Theme.kt is wired to it (see its base-platform skill).
+      generated/kotlin/BaseTokens.kt: design/base-platform/BaseTokens.kt
+      generated/catalog/models.json: design/base-platform/models.json
+      generated/css/base-tokens.css: design/base-platform/base-tokens.css
+  - repo: PhoneDots              # Flutter, migrating onto the base packages
+    files:
+      generated/catalog/models.json: assets/base/models.json
+      packages/base_design/lib/src/generated/tokens.g.dart: lib/theme/base_tokens.g.dart
+  - repo: spreix-notetaker-apps  # React + Capacitor + Electron
+    files:
+      generated/css/base-tokens.css: src/styles/base-tokens.css
+      generated/catalog/models.json: src/base/models.json
