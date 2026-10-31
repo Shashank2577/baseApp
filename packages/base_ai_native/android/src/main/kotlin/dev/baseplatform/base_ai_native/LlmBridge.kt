@@ -208,8 +208,9 @@ class LlmBridge(private val context: Context, messenger: BinaryMessenger) :
       val sampler = call.argument<Map<*, *>>("sampler").orEmpty()
       val engine = engines[modelId] ?: throw IllegalStateException("Model $modelId is not loaded")
 
-      // A different system prompt or tool list needs a fresh conversation.
-      val key = "$modelId|${system.hashCode()}|${tools.joinToString(",") { it["name"].toString() }}"
+      // A different system prompt, tool list or sampler needs a fresh conversation.
+      val key = "$modelId|${system.hashCode()}|${tools.joinToString(",") { it["name"].toString() }}|" +
+        listOf("temperature", "topK", "topP", "maxTokens").joinToString(",") { sampler[it].toString() }
       var session = sessions[sessionId]
       if (session == null || session.key != key || session.synced != history.size - 1) {
         session?.conversation?.close()

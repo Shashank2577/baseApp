@@ -180,7 +180,9 @@ final class LlmBridge: NSObject, FlutterStreamHandler {
       guard let engine = lock.withLock({ engines[modelId] }), let last = history.last else {
         throw NSError(domain: "llm", code: 2, userInfo: [NSLocalizedDescriptionKey: "Model \(modelId) is not loaded"])
       }
-      let key = "\(modelId)|\(system.hashValue)"
+      // A different system prompt or sampler needs a fresh conversation.
+      let samplerKey = ["temperature", "topK", "topP", "maxTokens"].map { "\(sampler[$0] ?? "")" }.joined(separator: ",")
+      let key = "\(modelId)|\(system.hashValue)|\(samplerKey)"
       var session = lock.withLock { sessions[sessionId] }
       if session == nil || session!.key != key || session!.synced != history.count - 1 {
         let config = ConversationConfig(

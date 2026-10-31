@@ -199,8 +199,10 @@ final class SpecialistBridge: NSObject, FlutterStreamHandler {
     case "tongue": return
     #endif
     default:
-      // Models without an explicit download fetch on first use.
-      return
+      // These SDK models fetch weights on first use, outside the store's
+      // offline switch and ledger, so they are never reported as installed.
+      throw NSError(domain: "specialist", code: 3, userInfo: [NSLocalizedDescriptionKey:
+        "\(key.capitalized) downloads its weights on first use on iOS, which the shared store cannot track yet."])
     }
   }
 

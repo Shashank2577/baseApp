@@ -70,7 +70,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
               if (mounted && needs.every(s.models.isReady)) setState(() => _step = 2);
             },
           ),
-          if (!allReady) Center(child: HandLink('later', onPressed: () => setState(() => _step = 2))),
+          if (!allReady)
+            Center(
+              child: HandLink(
+                'later',
+                onPressed: () async {
+                  // Claim what is already here so another app can't delete it under us.
+                  await _download(s, needs.where(store.isReady).toList());
+                  if (mounted) setState(() => _step = 2);
+                },
+              ),
+            ),
         ],
       ),
       children: [

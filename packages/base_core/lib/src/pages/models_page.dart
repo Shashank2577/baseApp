@@ -38,6 +38,11 @@ class ModelsPage extends StatelessWidget {
             const SectionHead('this app uses'),
             if (mine.isEmpty) const Meta('No models yet.'),
             for (final id in mine) _ModelRow(spec: store.spec(id), required: s.config.requiredModels.contains(id)),
+            const SizedBox(height: 16),
+            const SectionHead('gated models', note: 'Gemma'),
+            const Meta('Some models need their licence accepted on huggingface.co first. Paste your access token here; it is only sent to huggingface.co.'),
+            const SizedBox(height: 8),
+            const _TokenField(),
             if (others.isNotEmpty) ...[
               const SizedBox(height: 16),
               const SectionHead('already here, from other apps', note: 'free to use'),
@@ -142,4 +147,52 @@ class _ModelRow extends StatelessWidget {
     );
     if (ok) await s.models.release(spec.id);
   }
+}
+
+/// The Hugging Face token for gated models, kept in this app's settings.
+class _TokenField extends StatefulWidget {
+  const _TokenField();
+
+  @override
+  State<_TokenField> createState() => _TokenFieldState();
+}
+
+class _TokenFieldState extends State<_TokenField> {
+  late final _token = TextEditingController(text: BaseScope.of(context).settings.hfToken);
+  bool _saved = false;
+
+  @override
+  void dispose() {
+    _token.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final value = _token.text.trim();
+    await BaseScope.of(context).settings.update((x) => x.hfToken = value);
+    if (mounted) setState(() => _saved = true);
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      HandField(
+        controller: _token,
+        placeholder: 'hf_...',
+        singleLine: true,
+        leading: Doodle.lock,
+        onChanged: (_) => setState(() => _saved = false),
+        onSubmitted: (_) => _save(),
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          PillButton('save token', onPressed: _save),
+          const SizedBox(width: 12),
+          if (_saved) const Flexible(child: Meta('saved on this device')),
+        ],
+      ),
+    ],
+  );
 }

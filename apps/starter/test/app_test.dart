@@ -76,5 +76,12 @@ void main() {
     await settle(tester);
     expect(find.text('this app uses'), findsOneWidget);
     expect(find.text('Gemma 3 270M'), findsOneWidget);
+
+    // The token for gated models can be entered and is saved in settings.
+    await tester.scrollUntilVisible(find.text('save token'), 200, scrollable: find.byType(Scrollable).last);
+    await tester.enterText(find.byType(TextField).last, 'hf_test');
+    await tester.tap(find.text('save token'));
+    await settle(tester);
+    expect(s.settings.hfToken, 'hf_test');
   });
 }

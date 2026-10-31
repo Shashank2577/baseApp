@@ -33,11 +33,16 @@ jobs:
     steps:
       - id: v
         shell: bash
+        # Inputs arrive as environment variables, never pasted into the script.
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_APP: ${{ inputs.app }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            TAG="${GITHUB_REF_NAME}"; APP="${TAG%-v*}"; VERSION="${TAG##*-v}"
+          if [ "$EVENT" = "push" ]; then
+            TAG="$GITHUB_REF_NAME"; APP="${TAG%-v*}"; VERSION="${TAG##*-v}"
           else
-            APP="${{ inputs.app }}"; VERSION="${{ inputs.version }}"
+            APP="$INPUT_APP"; VERSION="$INPUT_VERSION"
           fi
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Bad version: $VERSION"; exit 1; }
           [[ "$APP" =~ ^[a-z][a-z0-9_]+$ ]] || { echo "Bad app: $APP"; exit 1; }

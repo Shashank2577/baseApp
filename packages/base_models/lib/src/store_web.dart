@@ -121,8 +121,10 @@ class WebModelStore extends ModelStore {
         rethrow;
       }
       _installing.remove(id);
+      // Re-read: another tab may have finished the same install meanwhile; keep its claims.
       final reg = _readRegistry();
-      reg[id] = {'bytes': total, 'users': <String, dynamic>{}};
+      final previous = ((reg[id] as Map?)?['users'] as Map?) ?? const {};
+      reg[id] = {'bytes': total, 'users': {...previous}};
       _writeRegistry(reg);
     }
     final reg = _readRegistry();
