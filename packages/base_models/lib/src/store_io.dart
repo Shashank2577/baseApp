@@ -17,7 +17,13 @@ const _channel = MethodChannel('base/models');
 Future<ModelStore> openPlatformStore(StoreOptions options) async {
   final location = await resolveLocation(options);
   Directory(location.path).createSync(recursive: true);
-  final store = IoModelStore(options, location, Platform.isAndroid && options.useNativeLocation ? AndroidSiblings() : null);
+  final local = options.appLocalDir ?? (options.useNativeLocation ? (await getApplicationSupportDirectory()).path : null);
+  final store = IoModelStore(
+    options,
+    location,
+    Platform.isAndroid && options.useNativeLocation ? AndroidSiblings() : null,
+    appLocalDir: local,
+  );
   await store.refresh();
   return store;
 }
@@ -83,7 +89,10 @@ class _Cancel {
 
 /// File-system store for Android, iOS, macOS, Windows and Linux.
 class IoModelStore extends ModelStore {
-  IoModelStore(super.options, this.location, this.siblings);
+  IoModelStore(super.options, this.location, this.siblings, {this.appLocalDir});
+
+  /// Deleted with the app; holds markers for per-app SDK installs.
+  final String? appLocalDir;
 
   @override
   final SharedLocation location;
@@ -148,7 +157,11 @@ class IoModelStore extends ModelStore {
     if (m.source == ModelSource.sdk) {
       if (entry['sdkReady'] != true || !Directory(pathOf(m.id)).existsSync()) return false;
       // Where the SDK keeps weights per app, only the apps that ran its installer have them.
-      return !_sdkPerApp || m.sdk!.bundled || ((entry['sdkApps'] as List?) ?? const []).contains(options.appId);
+      if (!_sdkPerApp || m.sdk!.bundled) return true;
+      // The registry survives an uninstall but the app's own SDK weights do
+      // not, so a reinstalled app must also find its local marker.
+      final marker = _sdkMarker(m.id);
+      return ((entry['sdkApps'] as List?) ?? const []).contains(options.appId) && (marker == null || marker.existsSync());
     }
     final files = (entry['files'] as Map?) ?? const {};
     for (final f in m.files) {
@@ -217,6 +230,8 @@ class IoModelStore extends ModelStore {
         // A cancel (or wipe) that landed after the last chunk still wins.
         if (cancel.cancelled) throw DownloadCancelled();
         _installing.remove(spec.id);
+        // Marked locally first, so the refresh after registering sees it.
+        if (spec.source == ModelSource.sdk && _sdkPerApp) _sdkMarker(spec.id)?.createSync(recursive: true);
         await _register(spec, recorded);
       } on DownloadCancelled {
         _installing.remove(spec.id);
@@ -239,6 +254,8 @@ class IoModelStore extends ModelStore {
       await lockFile.close();
     }
   }
+
+  File? _sdkMarker(String id) => appLocalDir == null ? null : File(p.join(appLocalDir!, 'base-sdk-installed', id));
 
   bool get _offline => options.offline?.call() ?? false;
 
@@ -393,6 +410,8 @@ class IoModelStore extends ModelStore {
 
   @override
   Future<void> release(String id) => _mutate((models) {
+    final marker = _sdkMarker(id);
+    if (marker != null && marker.existsSync()) marker.deleteSync();
     final entry = models[id] as Map?;
     if (entry == null) return;
     (entry['users'] as Map?)?.remove(options.appId);
@@ -408,9 +427,37 @@ class IoModelStore extends ModelStore {
     _deleteDir(id);
   });
 
+  /// Deletes the model's files unless an install of it is running, here or in
+  /// another app (which holds `.download.lock` before it has a claim). That
+  /// install then registers the files it finishes.
   void _deleteDir(String id) {
     final dir = Directory(pathOf(id));
-    if (dir.existsSync()) dir.deleteSync(recursive: true);
+    if (!dir.existsSync() || _installing.contains(id)) return;
+    final lockPath = p.join(dir.path, '.download.lock');
+    final RandomAccessFile lock;
+    try {
+      lock = File(lockPath).openSync(mode: FileMode.append);
+    } on FileSystemException {
+      return;
+    }
+    try {
+      try {
+        lock.lockSync(FileLock.exclusive);
+      } on FileSystemException {
+        return; // Another app is installing it.
+      }
+      for (final e in dir.listSync()) {
+        if (p.basename(e.path) != '.download.lock') e.deleteSync(recursive: true);
+      }
+    } finally {
+      lock.closeSync(); // Also releases the lock.
+    }
+    try {
+      File(lockPath).deleteSync();
+      dir.deleteSync(); // Not recursive: leaves anything an install started since.
+    } on FileSystemException {
+      // An install began in between; it owns the folder now.
+    }
   }
 
   /// Adds this app to the model's users under the registry lock. False when

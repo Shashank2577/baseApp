@@ -7,6 +7,10 @@ abstract class JsonStore {
   /// (several apps served from one web origin). Use the app id.
   static Future<JsonStore> open({String namespace = 'app'}) => impl.openStore(namespace);
 
+  /// Keys with this prefix hold credentials: on Android they are kept out of
+  /// Auto Backup and device transfers.
+  static const secretPrefix = 'secret.';
+
   Future<Object?> read(String key);
 
   Future<void> write(String key, Object? value);

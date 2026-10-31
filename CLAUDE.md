@@ -18,6 +18,7 @@ The platform every app is built on: a Flutter pub workspace (`packages/`, `apps/
 ./base gen            # if you touched design/, catalog/ or platform.yaml
 flutter analyze       # at the root: all packages and apps
 flutter test packages/base_design packages/base_models packages/base_core apps/*
+(cd packages/base_models && flutter test --platform chrome test/web_store_test.dart)   # needs Chrome
 (cd tools/base_tool && dart test)
 ./base check          # 0 errors
 ```

@@ -20,6 +20,18 @@ void main() {
     expect(again.neverOnline, isTrue);
   });
 
+  test('the Hugging Face token is kept as a secret, apart from the backed-up settings', () async {
+    final store = MemoryJsonStore();
+    // Saved by an older build, inside the settings document.
+    await store.write('base.settings', {'hfToken': 'hf_old', 'onboarded': true});
+    final s = await BaseSettings.load(store);
+    expect(s.hfToken, 'hf_old');
+    expect((await store.read('base.settings') as Map).containsKey('hfToken'), isFalse);
+    expect(await store.read('${JsonStore.secretPrefix}hfToken'), 'hf_old');
+    await s.update((x) => x.hfToken = '');
+    expect(await store.read('${JsonStore.secretPrefix}hfToken'), isNull);
+  });
+
   test('the ledger counts today and in total, and says it in words', () async {
     final store = MemoryJsonStore();
     final l = await Ledger.load(store);

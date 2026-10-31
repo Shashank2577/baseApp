@@ -12,14 +12,21 @@ let package = Package(
         .library(name: "base-ai-native", targets: ["base_ai_native"])
     ],
     dependencies: [
-        .package(name: "FlutterFramework", path: "../FlutterFramework")
+        .package(name: "FlutterFramework", path: "../FlutterFramework"),
+        // The engines. They must be dependencies of this target (not only of the
+        // Runner) for the bridges' `canImport` checks to see them.
+        .package(url: "https://github.com/google-ai-edge/LiteRT-LM.git", from: "0.19.0"),
+        .package(url: "https://github.com/Desert-Ant-Labs/desert-ant-core.git", from: "4.2.1"),
     ],
     targets: [
         .target(
             name: "base_ai_native",
             dependencies: [
-                .product(name: "FlutterFramework", package: "FlutterFramework")
-            ],
+                .product(name: "FlutterFramework", package: "FlutterFramework"),
+                .product(name: "LiteRTLM", package: "litert-lm"),
+            ] + ["Voz", "Who", "Ear", "Clear", "Uhm", "Redact", "Tongue", "Emo", "Gist", "Eye", "Moderator"].map {
+                .product(name: $0, package: "desert-ant-core")
+            },
             resources: [
                 // If your plugin requires a privacy manifest, for example if it uses any required
                 // reason APIs, update the PrivacyInfo.xcprivacy file to describe your plugin's

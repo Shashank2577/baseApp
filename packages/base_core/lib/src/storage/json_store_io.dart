@@ -10,18 +10,27 @@ Future<JsonStore> openStore(String namespace) async {
   final support = await getApplicationSupportDirectory();
   final data = Directory('${support.path}/data')..createSync(recursive: true);
   final files = Directory('${support.path}/files')..createSync(recursive: true);
-  return _FileStore(data, files.path);
+  // Secrets (keys starting with `secret.`) stay out of backups and device
+  // transfers. Android's Auto Backup copies filesDir (the support folder) but
+  // never the sibling no_backup folder.
+  var secrets = data;
+  if (Platform.isAndroid && support.uri.pathSegments.where((s) => s.isNotEmpty).last == 'files') {
+    secrets = Directory('${support.parent.path}/no_backup/base-secrets')..createSync(recursive: true);
+  }
+  return _FileStore(data, files.path, secrets);
 }
 
 class _FileStore implements JsonStore {
-  _FileStore(this._dir, this.filesDir);
+  _FileStore(this._dir, this.filesDir, this._secrets);
 
   final Directory _dir;
+  final Directory _secrets;
 
   @override
   final String filesDir;
 
-  File _file(String key) => File('${_dir.path}/${Uri.encodeComponent(key)}.json');
+  File _file(String key) =>
+      File('${(key.startsWith(JsonStore.secretPrefix) ? _secrets : _dir).path}/${Uri.encodeComponent(key)}.json');
 
   @override
   Future<Object?> read(String key) async {
@@ -68,12 +77,13 @@ class _FileStore implements JsonStore {
   }
 
   @override
-  Future<List<String>> keys(String prefix) async => _dir
-      .listSync()
+  Future<List<String>> keys(String prefix) async => {_dir.path: _dir, _secrets.path: _secrets}.values
+      .expand((d) => d.listSync())
       .whereType<File>()
       .map((f) => f.uri.pathSegments.last)
       .where((n) => n.endsWith('.json'))
       .map((n) => Uri.decodeComponent(n.substring(0, n.length - 5)))
       .where((k) => k.startsWith(prefix))
+      .toSet()
       .toList();
 }

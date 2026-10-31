@@ -13,6 +13,9 @@ Native LiteRT-LM and Desert Ant bridges.
   s.license          = { :type => 'Proprietary' }
   s.author           = { 'Base platform' => 'dev@baseplatform.dev' }
   s.source           = { :path => '.' }
+  # LiteRT-LM and Desert Ant ship as Swift packages only; under CocoaPods the
+  # bridges compile without them and report the engines as unavailable. Use
+  # Swift Package Manager (Package.swift) for real inference.
   s.source_files = 'base_ai_native/Sources/base_ai_native/**/*'
   s.dependency 'Flutter'
   s.platform = :ios, '18.0'

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
-import 'dart:typed_data';
+import 'dart:js_interop_unsafe';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:web/web.dart' as web;
@@ -29,7 +29,7 @@ class WebModelStore extends ModelStore {
   final location = const SharedLocation(_cacheName, ShareScope.browser, 'shared by every app on this website, in this browser');
 
   final _states = <String, ModelState>{};
-  final _cancels = <String, web.XMLHttpRequest>{};
+  final _cancels = <String, web.AbortController>{};
   // Installs cancelled after their request finished (hashing, caching, registering).
   final _cancelled = <String>{};
   final _installing = <String>{};
@@ -113,19 +113,11 @@ class WebModelStore extends ModelStore {
           }
           // The cache can change between checks (eviction, another tab): never fetch while offline.
           if (options.offline?.call() ?? false) throw OfflineException(spec.name);
-          final bytes = await _fetch(id, f, (received) {
+          final received = await _fetchInto(cache, id, f, (received) {
             if (spec.bytes > 0) _set(id, stateOf(id).copyWith(progress: ((done + received) / spec.bytes).clamp(0, 1)));
           });
-          final want = f.sha256;
-          if (want != null) {
-            final got = crypto.sha256.convert(bytes).toString();
-            if (got != want) throw ChecksumMismatch(f.name, want, got);
-          }
-          if (_cancelled.contains(id)) throw DownloadCancelled();
-          await cache.put(f.url.toJS, web.Response(bytes.toJS)).toDart;
-          options.onNetworkBytes?.call(bytes.length);
-          done += bytes.length;
-          total += bytes.length;
+          done += received;
+          total += received;
         }
         // A cancel (or wipe) after the last request still wins: no claim is written.
         if (_cancelled.contains(id)) throw DownloadCancelled();
@@ -160,33 +152,70 @@ class WebModelStore extends ModelStore {
     return true;
   }
 
-  Future<Uint8List> _fetch(String id, ModelFile f, void Function(int) progress) {
-    final done = Completer<Uint8List>();
-    final xhr = web.XMLHttpRequest()
-      ..open('GET', f.url)
-      ..responseType = 'arraybuffer';
-    _cancels[id] = xhr;
-    xhr.onprogress = ((web.ProgressEvent e) => progress(e.loaded)).toJS;
-    xhr.onload = ((web.Event _) {
-      _cancels.remove(id);
-      if (xhr.status == 200) {
-        done.complete((xhr.response as JSArrayBuffer).toDart.asUint8List());
-      } else {
-        done.completeError(StateError('HTTP ${xhr.status} for ${f.name}'));
-      }
-    }).toJS;
-    xhr.onerror = ((web.Event _) {
-      _cancels.remove(id);
-      done.completeError(StateError('Network error for ${f.name}'));
-    }).toJS;
-    xhr.onabort = ((web.Event _) {
-      _cancels.remove(id);
-      done.completeError(DownloadCancelled());
-    }).toJS;
+  /// Streams [f] from the network straight into Cache Storage, hashing it on
+  /// the way, so a multi-gigabyte model never sits in memory. The stream is
+  /// pulled at the cache's pace (backpressure), one chunk at a time.
+  Future<int> _fetchInto(web.Cache cache, String id, ModelFile f, void Function(int) progress) async {
+    final abort = _cancels[id] = web.AbortController();
+    final headers = web.Headers();
     // The saved Hugging Face token for gated models, like the native store sends.
-    options.headersFor?.call(f).forEach((name, value) => xhr.setRequestHeader(name, value));
-    xhr.send();
-    return done.future;
+    options.headersFor?.call(f).forEach((name, value) => headers.set(name, value));
+    final digest = _DigestSink();
+    final hash = crypto.sha256.startChunkedConversion(digest);
+    var received = 0;
+    try {
+      final res = await web.window.fetch(f.url.toJS, web.RequestInit(headers: headers, signal: abort.signal)).toDart;
+      if (!res.ok || res.body == null) throw StateError('HTTP ${res.status} for ${f.name}');
+      final reader = res.body!.getReader() as web.ReadableStreamDefaultReader;
+      // Chrome's cache.put does not settle when its body stream fails, so the
+      // stream's own failure (network error, cancel) ends the wait instead.
+      final failed = Completer<void>();
+      abort.signal.onabort = ((web.Event _) {
+        if (!failed.isCompleted) failed.completeError(DownloadCancelled());
+      }).toJS;
+      Future<void> pull(web.ReadableStreamDefaultController c) async {
+        final web.ReadableStreamReadResult r;
+        try {
+          r = await reader.read().toDart;
+        } catch (e) {
+          if (!failed.isCompleted) failed.completeError(e);
+          rethrow;
+        }
+        if (r.done) {
+          c.close();
+          return;
+        }
+        final chunk = r.value as JSUint8Array;
+        final bytes = chunk.toDart;
+        hash.add(bytes);
+        received += bytes.length;
+        options.onNetworkBytes?.call(bytes.length);
+        progress(received);
+        c.enqueue(chunk);
+      }
+
+      final source = JSObject()
+        ..['pull'] = ((web.ReadableStreamDefaultController c) => pull(c).toJS).toJS
+        ..['cancel'] = ((JSAny? reason) => reader.cancel(reason)).toJS;
+      await Future.any([cache.put(f.url.toJS, web.Response(web.ReadableStream(source))).toDart, failed.future]);
+    } catch (e) {
+      if (abort.signal.aborted || _cancelled.contains(id)) throw DownloadCancelled();
+      if (e is StateError) rethrow;
+      throw StateError('Network error for ${f.name}');
+    } finally {
+      _cancels.remove(id);
+    }
+    hash.close();
+    final want = f.sha256;
+    if (want != null && digest.value.toString() != want) {
+      await cache.delete(f.url.toJS).toDart;
+      throw ChecksumMismatch(f.name, want, digest.value.toString());
+    }
+    if (_cancelled.contains(id)) {
+      await cache.delete(f.url.toJS).toDart;
+      throw DownloadCancelled();
+    }
+    return received;
   }
 
   void _set(String id, ModelState s) {
@@ -265,4 +294,14 @@ class WebModelStore extends ModelStore {
       if (!stillUsed.contains(f.url)) await cache.delete(f.url.toJS).toDart;
     }
   }
+}
+
+class _DigestSink implements Sink<crypto.Digest> {
+  late crypto.Digest value;
+
+  @override
+  void add(crypto.Digest data) => value = data;
+
+  @override
+  void close() {}
 }

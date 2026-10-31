@@ -9,6 +9,7 @@ class BaseSettings extends ChangeNotifier {
   BaseSettings._(this._store);
 
   static const _key = 'base.settings';
+  static const _tokenKey = '${JsonStore.secretPrefix}hfToken';
 
   final JsonStore _store;
 
@@ -33,8 +34,12 @@ class BaseSettings extends ChangeNotifier {
       ..voiceId = raw['voice'] as String? ?? defaultVoiceId
       ..onboarded = raw['onboarded'] as bool? ?? false
       ..neverOnline = raw['neverOnline'] as bool? ?? false
-      ..hfToken = raw['hfToken'] as String? ?? ''
+      // Kept apart from the other settings so backups don't carry it; older
+      // builds kept it in the settings document.
+      ..hfToken = (await store.read(_tokenKey) as String?) ?? raw['hfToken'] as String? ?? ''
       ..extra = (raw['extra'] as Map?)?.cast<String, Object?>() ?? {};
+    // Move a token saved by an older build out of the backed-up document.
+    if (raw.containsKey('hfToken')) await s.update((_) {});
     return s;
   }
 
@@ -47,9 +52,13 @@ class BaseSettings extends ChangeNotifier {
       'voice': voiceId,
       'onboarded': onboarded,
       'neverOnline': neverOnline,
-      'hfToken': hfToken,
       'extra': extra,
     });
+    if (hfToken.isEmpty) {
+      await _store.delete(_tokenKey);
+    } else {
+      await _store.write(_tokenKey, hfToken);
+    }
   }
 
   Future<void> reset() => update((s) {

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:base_models/base_models.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 /// Two "apps" open the same store folder, as two apps on one Mac, PC or
 /// iPhone (App Group) do. A tiny local server stands in for Hugging Face.
@@ -228,6 +229,65 @@ void main() {
     expect(installs, 2, reason: 'b ran its own installer');
     expect(b.isReady('desertant.ear'), isTrue);
     expect(b.stateOf('desertant.ear').users, {'app.a', 'app.b'});
+  });
+
+  test('per-app SDK weights: a reinstalled app runs the installer again', () async {
+    var installs = 0;
+    Future<ModelStore> sdkStore(String local) => ModelStore.open(
+      StoreOptions(
+        appId: 'app.a',
+        catalog: ModelCatalog(),
+        rootOverride: root.path,
+        useNativeLocation: false,
+        sdkWeightsPerApp: true,
+        appLocalDir: local,
+        sdkInstaller: (id, key, dir, progress) async {
+          installs++;
+          Directory(dir).createSync(recursive: true);
+        },
+      ),
+    );
+    final before = Directory.systemTemp.createTempSync('app-local-');
+    final a = await sdkStore(before.path);
+    await a.ensure('desertant.ear');
+    expect(a.isReady('desertant.ear'), isTrue);
+    // Uninstall and reinstall: the shared registry stays, the app's own folder is new.
+    final after = Directory.systemTemp.createTempSync('app-local-');
+    final again = await sdkStore(after.path);
+    expect(again.isReady('desertant.ear'), isFalse);
+    await again.ensure('desertant.ear');
+    expect(installs, 2);
+    expect(again.isReady('desertant.ear'), isTrue);
+  });
+
+  test('releasing the last claim leaves a model alone while another app installs it', () async {
+    final a = await open('app.a');
+    await a.ensure('test.tiny');
+    // Another process (app) holds the model's download lock, repairing it.
+    final script = File(p.join(Directory.systemTemp.createTempSync('lock-holder-').path, 'hold_lock.dart'))
+      ..writeAsStringSync('''
+import 'dart:io';
+Future<void> main(List<String> args) async {
+  final f = await File(args[0]).open(mode: FileMode.append);
+  await f.lock(FileLock.exclusive);
+  print('locked');
+  await stdin.first;
+}
+''');
+    final holder = await Process.start('dart', [script.path, p.join(a.pathOf('test.tiny'), '.download.lock')]);
+    await holder.stdout.transform(utf8.decoder).firstWhere((l) => l.contains('locked'));
+    try {
+      await a.release('test.tiny');
+      expect(a.stateOf('test.tiny').users, isEmpty);
+      expect(File(a.pathOf('test.tiny', 'weights.bin')).existsSync(), isTrue, reason: 'the installing app keeps its files');
+    } finally {
+      holder.stdin.writeln();
+      await holder.exitCode;
+    }
+    // With nobody installing, the last release deletes the files.
+    await a.ensure('test.tiny');
+    await a.release('test.tiny');
+    expect(Directory(a.pathOf('test.tiny')).existsSync(), isFalse);
   });
 
   test('the shared catalog is valid', () {

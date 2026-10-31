@@ -65,13 +65,14 @@ Rules the code follows (`packages/base_models/lib/src/store_io.dart`):
 - **Downloads** go to `<file>.part`, resume with an HTTP `Range` header, and are verified against the catalog's SHA-256 before the rename. A mismatch deletes the part file.
 - **Two apps at once:** the downloading app holds `<model>/.download.lock`. A second app sees the lock, shows "another app is downloading this", and picks the model up when it is ready instead of downloading it again. Registry writes are read-modify-write under `.registry.lock`, written to a temp file and renamed.
 - **"Never go online"** (privacy page) makes every needed download fail with `OfflineException`; models already on the device keep working.
-- **Release** removes this app from `users`; the files go when `users` is empty. **Delete everywhere** removes the model for all apps.
+- **Release** removes this app from `users`; the files go when `users` is empty, unless another app holds the model's `.download.lock` (it is repairing or installing it and registers the files when done). **Delete everywhere** removes the model for all apps.
+- **Web** streams each file from the network into Cache Storage, hashing it on the way, so even a 2.6 GB model never sits in memory; a wrong checksum deletes the cached copy.
 - **Uninstalled apps** can't release their claims. Every app refreshes its claim times at startup, and claims not refreshed for 180 days are dropped. The files then go when the remaining users release the model; an app that comes back simply downloads it again.
 - A damaged `registry.json` is treated as empty rather than crashing every app.
 
 ## SDK-managed models (Desert Ant)
 
-Some vendors' SDKs download their own weights. For those the catalog entry has `"source": "sdk"`, and the store hands the SDK a folder inside the store (`<store>/desertant.voz/`) through the `SdkInstaller` that `base_ai` provides. On Android, `base_ai_native` passes that folder to the SDK, so these weights are shared too. On iOS the Desert Ant SDK uses its own location, so SDK models are per-app there, removing one does not free its space, and the privacy page's download total does not include them (known limits; see the on-device-ai skill). Elsewhere, an SDK model's size in the store is added to the download total once installed.
+Some vendors' SDKs download their own weights. For those the catalog entry has `"source": "sdk"`, and the store hands the SDK a folder inside the store (`<store>/desertant.voz/`) through the `SdkInstaller` that `base_ai` provides. On Android, `base_ai_native` passes that folder to the SDK, so these weights are shared too. On iOS the Desert Ant SDK uses its own location, so SDK models are per-app there (each app also keeps a marker in its own container, so a reinstalled app runs the installer again instead of trusting the shared registry), removing one does not free its space, and the privacy page's download total does not include them (known limits; see the on-device-ai skill). Elsewhere, an SDK model's size in the store is added to the download total once installed.
 
 ## Adding a model
 
@@ -79,4 +80,4 @@ Use the `shared-models` skill. In short: add an entry to `catalog/models.json`, 
 
 ## Verified
 
-`packages/base_models/test/store_test.dart` runs against a local HTTP server: two apps sharing one store with no second download, release semantics, "never go online", checksum failure, resume from a partial file, and a deleted file making the model absent. The Android provider and the App Group code compile in the starter's builds but have not been run on two installed apps on a real device yet.
+`packages/base_models/test/store_test.dart` runs against a local HTTP server: two apps sharing one store with no second download, release semantics, "never go online", checksum failure, resume from a partial file, a deleted file making the model absent, a reinstalled app re-running a per-app SDK installer, and a release leaving files alone while another process holds the download lock. `test/web_store_test.dart` runs the web store in Chrome (`flutter test --platform chrome`): streaming into Cache Storage, a bad checksum, cancel. The Android provider and the App Group code compile in the starter's builds but have not been run on two installed apps on a real device yet.

@@ -35,6 +35,9 @@ jobs:
       - run: flutter analyze
       - name: Tests (every package and app)
         run: flutter test packages/base_design packages/base_models packages/base_core apps/*
+      - name: Web model store in Chrome (streaming into Cache Storage, checksum, cancel)
+        working-directory: packages/base_models
+        run: flutter test --platform chrome test/web_store_test.dart
       - name: Tool tests
         working-directory: tools/base_tool
         run: dart test

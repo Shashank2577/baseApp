@@ -17,6 +17,7 @@ class StoreOptions {
     this.onNetworkBytes,
     this.useNativeLocation = true,
     this.sdkWeightsPerApp,
+    this.appLocalDir,
   });
 
   /// This app's bundle / application id. Recorded as a user of each model it claims.
@@ -42,6 +43,11 @@ class StoreOptions {
   /// SDK-managed weights live in each app's own folder (iOS Desert Ant), so
   /// one app's install does not make them ready for another. Null: iOS only.
   final bool? sdkWeightsPerApp;
+
+  /// A folder that is deleted with this app (its own container), where the
+  /// store marks per-app SDK installs; the shared registry outlives an
+  /// uninstall, the SDK's weights do not. Null: the app support folder.
+  final String? appLocalDir;
 }
 
 /// The one on-device model store, shared by every app of the vendor.
