@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Storage, verified, shared through the registry, and cancellable.
 const _server = r'''
 import 'dart:io';
+import 'package:stream_channel/stream_channel.dart';
 
 Future<void> hybridMain(StreamChannel<Object?> channel) async {
   final payload = List<int>.generate(3 * 1024 * 1024, (i) => i % 251);
