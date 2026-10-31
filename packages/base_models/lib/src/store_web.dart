@@ -79,6 +79,12 @@ class WebModelStore extends ModelStore {
   }
 
   @override
+  Set<String> get claimedByThisApp => {
+    for (final e in _readRegistry().entries)
+      if (catalog.byId(e.key) != null && (((e.value as Map)['users'] as Map?)?.containsKey(options.appId) ?? false)) e.key,
+  };
+
+  @override
   Future<void> ensure(String id) => _inflight[id] ??= _ensure(id).whenComplete(() {
     _inflight.remove(id);
   });

@@ -107,11 +107,9 @@ abstract class ModelStore extends ChangeNotifier {
   /// Bytes of every model in the shared store, all apps together.
   int get bytesOnDisk;
 
-  /// Model ids this app has claimed.
-  Set<String> get claimedByThisApp => {
-    for (final m in catalog.all)
-      if (stateOf(m.id).users.contains(options.appId)) m.id,
-  };
+  /// Model ids this app has claimed in the registry, including models whose
+  /// files have gone missing (so wipe can still release those claims).
+  Set<String> get claimedByThisApp;
 
   /// Waits for [ensure] on several models, one at a time (so a phone does not
   /// open five big downloads at once).

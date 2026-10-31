@@ -41,7 +41,7 @@ class TodayPage extends StatelessWidget {
               const SizedBox(height: 24),
               MarkedText('all quiet.', mark: 'quiet', style: context.type.title),
               const SizedBox(height: 4),
-              Meta('${s.models.claimedByThisApp.length} model(s) ready, ${formatBytes(s.models.bytesOnDisk)} shared on this device'),
+              Meta('${s.models.claimedByThisApp.where(s.models.isReady).length} model(s) ready, ${formatBytes(s.models.bytesOnDisk)} shared on this device'),
             ],
             const HandDivider(seed: 4),
             Door(

@@ -71,13 +71,26 @@ class _FileStore implements JsonStore {
   }
 
   @override
-  Future<void> delete(String key) async {
-    final f = _file(key);
-    if (f.existsSync()) await f.delete();
+  Future<void> delete(String key) {
+    // Queued behind pending writes of the same key, so a write that was
+    // already on its way can't recreate the document after the delete.
+    final next = (_queues[key] ?? Future<void>.value()).then((_) async {
+      final f = _file(key);
+      if (f.existsSync()) await f.delete();
+    });
+    _queues[key] = next.catchError((_) {});
+    return next;
   }
 
   @override
-  Future<List<String>> keys(String prefix) async => {_dir.path: _dir, _secrets.path: _secrets}.values
+  Future<List<String>> keys(String prefix) async {
+    // Let writes on their way land first, so a caller deleting every key (wipe)
+    // sees documents that don't exist on disk yet.
+    await Future.wait(_queues.values.toList());
+    return _listKeys(prefix);
+  }
+
+  List<String> _listKeys(String prefix) => {_dir.path: _dir, _secrets.path: _secrets}.values
       .expand((d) => d.listSync())
       .whereType<File>()
       .map((f) => f.uri.pathSegments.last)

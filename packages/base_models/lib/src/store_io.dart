@@ -84,7 +84,17 @@ class AndroidSiblings implements SiblingSource {
 }
 
 class _Cancel {
-  bool cancelled = false;
+  bool _cancelled = false;
+  bool get cancelled => _cancelled;
+
+  /// Aborts whatever is in flight (an HTTP request stalled before its headers
+  /// or between chunks would otherwise never notice the flag).
+  void Function()? onCancel;
+
+  void cancel() {
+    _cancelled = true;
+    onCancel?.call();
+  }
 }
 
 /// File-system store for Android, iOS, macOS, Windows and Linux.
@@ -330,7 +340,9 @@ class IoModelStore extends ModelStore {
     final part = File('$dest.part');
     var existing = part.existsSync() ? part.lengthSync() : 0;
     final client = HttpClient()..autoUncompress = false;
+    cancel.onCancel = () => client.close(force: true);
     try {
+      if (cancel.cancelled) throw DownloadCancelled();
       final request = await client.getUrl(Uri.parse(f.url));
       options.headersFor?.call(f).forEach(request.headers.set);
       if (existing > 0) request.headers.set(HttpHeaders.rangeHeader, 'bytes=$existing-');
@@ -369,7 +381,14 @@ class IoModelStore extends ModelStore {
       }
       await _verify(f, part);
       await part.rename(dest);
+    } on DownloadCancelled {
+      rethrow;
+    } catch (_) {
+      // Closing the client on cancel fails the request or the body stream.
+      if (cancel.cancelled) throw DownloadCancelled();
+      rethrow;
     } finally {
+      cancel.onCancel = null;
       client.close(force: true);
     }
   }
@@ -385,7 +404,7 @@ class IoModelStore extends ModelStore {
   }
 
   @override
-  void cancel(String id) => _cancels[id]?.cancelled = true;
+  void cancel(String id) => _cancels[id]?.cancel();
 
   @override
   Future<void> touchClaims() => _mutate((models) {
@@ -407,6 +426,13 @@ class IoModelStore extends ModelStore {
       });
     }
   });
+
+  @override
+  Set<String> get claimedByThisApp => {
+    for (final e in ((_registry['models'] as Map?) ?? const {}).entries)
+      if (catalog.byId(e.key as String) != null && (((e.value as Map)['users'] as Map?)?.containsKey(options.appId) ?? false))
+        e.key as String,
+  };
 
   @override
   Future<void> release(String id) => _mutate((models) {

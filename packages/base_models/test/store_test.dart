@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,6 +15,7 @@ void main() {
   late List<int> payload;
   var requests = 0;
   var lastRange = '';
+  Completer<void>? stall;
 
   setUp(() async {
     payload = List<int>.generate(300000, (i) => i % 251);
@@ -21,6 +23,7 @@ void main() {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
       requests++;
+      if (stall != null) await stall!.future; // A server that never answers.
       lastRange = req.headers.value(HttpHeaders.rangeHeader) ?? '';
       final m = RegExp(r'bytes=(\d+)-').firstMatch(lastRange);
       final from = m == null ? 0 : int.parse(m[1]!);
@@ -288,6 +291,31 @@ Future<void> main(List<String> args) async {
     await a.ensure('test.tiny');
     await a.release('test.tiny');
     expect(Directory(a.pathOf('test.tiny')).existsSync(), isFalse);
+  });
+
+  test('cancel aborts a request the server never answers', () async {
+    final a = await open('app.a');
+    stall = Completer<void>();
+    final run = a.ensure('test.tiny');
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    a.cancel('test.tiny');
+    await expectLater(run.timeout(const Duration(seconds: 5)), throwsA(isA<DownloadCancelled>()));
+    stall!.complete();
+    stall = null;
+    // Nothing is left attached to the cancelled install.
+    await a.ensure('test.tiny');
+    expect(a.isReady('test.tiny'), isTrue);
+  });
+
+  test('a claim on a model whose file went missing is still releasable', () async {
+    final a = await open('app.a');
+    await a.ensure('test.tiny');
+    File(a.pathOf('test.tiny', 'weights.bin')).deleteSync();
+    await a.refresh();
+    expect(a.isReady('test.tiny'), isFalse);
+    expect(a.claimedByThisApp, contains('test.tiny'));
+    await a.release('test.tiny');
+    expect(a.claimedByThisApp, isEmpty);
   });
 
   test('the shared catalog is valid', () {
