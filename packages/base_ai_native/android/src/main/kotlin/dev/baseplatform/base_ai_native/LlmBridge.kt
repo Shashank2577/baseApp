@@ -49,7 +49,16 @@ class LlmBridge(private val context: Context, messenger: BinaryMessenger) :
     val modelId: String,
     val key: String,
     var synced: Int,
+    // Fingerprint of the Dart turns this conversation holds, so an edited
+    // earlier turn (same count, different content) starts a fresh conversation.
+    var prefixLen: Int,
+    var prefixHash: Int,
   )
+
+  /** Guards the process-wide constrained-decoding flag around conversation creation. */
+  private val conversationLock = Any()
+
+  private fun fingerprint(turns: List<Map<*, *>>): Int = turns.toString().hashCode()
 
   /** Describes a skill to the model. Never executed natively. */
   private class DartTool(private val spec: Map<*, *>) : OpenApiTool {
@@ -161,6 +170,8 @@ class LlmBridge(private val context: Context, messenger: BinaryMessenger) :
     } finally {
       ExperimentalFlags.enableBenchmark = false
     }
+    // Conversations belong to the engine they were made on: drop them with it.
+    sessions.entries.filter { it.value.modelId == id }.forEach { sessions.remove(it.key)?.conversation?.close() }
     engines.put(id, engine)?.close()
     return null
   }
@@ -213,28 +224,35 @@ class LlmBridge(private val context: Context, messenger: BinaryMessenger) :
       val key = "$modelId|${system.hashCode()}|${tools.toString().hashCode()}|" +
         listOf("temperature", "topK", "topP", "maxTokens").joinToString(",") { sampler[it].toString() }
       var session = sessions[sessionId]
-      if (session == null || session.key != key || session.synced != history.size - 1) {
+      val reusable = session != null && session.key == key && session.synced == history.size - 1 &&
+        history.size >= session.prefixLen && fingerprint(history.take(session.prefixLen)) == session.prefixHash
+      if (!reusable) {
         session?.conversation?.close()
-        ExperimentalFlags.enableConversationConstrainedDecoding = tools.isNotEmpty()
-        val conversation = try {
-          engine.createConversation(
-            ConversationConfig(
-              systemInstruction = if (system.isEmpty()) null else Contents.of(system),
-              initialMessages = history.dropLast(1).map(::toMessage),
-              tools = tools.map { tool(DartTool(it)) },
-              samplerConfig = SamplerConfig(
-                topK = (sampler["topK"] as? Number)?.toInt() ?: 40,
-                topP = (sampler["topP"] as? Number)?.toDouble() ?: 0.95,
-                temperature = (sampler["temperature"] as? Number)?.toDouble() ?: 0.7,
-              ),
-              automaticToolCalling = false,
-              maxOutputToken = (sampler["maxTokens"] as? Number)?.toInt(),
+        // The flag is global: hold the lock so a concurrent request can't flip it
+        // between setting it and creating this conversation.
+        val conversation = synchronized(conversationLock) {
+          ExperimentalFlags.enableConversationConstrainedDecoding = tools.isNotEmpty()
+          try {
+            engine.createConversation(
+              ConversationConfig(
+                systemInstruction = if (system.isEmpty()) null else Contents.of(system),
+                initialMessages = history.dropLast(1).map(::toMessage),
+                tools = tools.map { tool(DartTool(it)) },
+                samplerConfig = SamplerConfig(
+                  topK = (sampler["topK"] as? Number)?.toInt() ?: 40,
+                  topP = (sampler["topP"] as? Number)?.toDouble() ?: 0.95,
+                  temperature = (sampler["temperature"] as? Number)?.toDouble() ?: 0.7,
+                ),
+                automaticToolCalling = false,
+                maxOutputToken = (sampler["maxTokens"] as? Number)?.toInt(),
+              )
             )
-          )
-        } finally {
-          ExperimentalFlags.enableConversationConstrainedDecoding = false
+          } finally {
+            ExperimentalFlags.enableConversationConstrainedDecoding = false
+          }
         }
-        session = Session(conversation, modelId, key, history.size - 1)
+        val prefix = history.dropLast(1)
+        session = Session(conversation, modelId, key, history.size - 1, prefix.size, fingerprint(prefix))
         sessions[sessionId] = session
       }
 
@@ -264,6 +282,8 @@ class LlmBridge(private val context: Context, messenger: BinaryMessenger) :
           override fun onDone() {
             active.remove(requestId)
             session.synced = history.size + 1
+            session.prefixLen = history.size
+            session.prefixHash = fingerprint(history)
             if (calls.isNotEmpty()) emit(mapOf("requestId" to requestId, "type" to "toolCalls", "calls" to calls))
             emit(mapOf("requestId" to requestId, "type" to "done", "stats" to stats(conversation, started, firstTokenAt, chunks)))
           }

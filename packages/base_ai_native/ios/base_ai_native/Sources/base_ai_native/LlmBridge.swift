@@ -18,12 +18,22 @@ final class LlmBridge: NSObject, FlutterStreamHandler {
     let modelId: String
     let key: String
     var synced: Int
-    init(conversation: Conversation, modelId: String, key: String, synced: Int) {
+    // The Dart turns this conversation holds, so an edited earlier turn (same
+    // count, different content) starts a fresh conversation.
+    var prefixLen: Int
+    var prefix: Data
+    init(conversation: Conversation, modelId: String, key: String, synced: Int, prefixLen: Int, prefix: Data) {
       self.conversation = conversation
       self.modelId = modelId
       self.key = key
       self.synced = synced
+      self.prefixLen = prefixLen
+      self.prefix = prefix
     }
+  }
+
+  private func fingerprint(_ turns: ArraySlice<[String: Any]>) -> Data {
+    (try? JSONSerialization.data(withJSONObject: Array(turns), options: [.sortedKeys])) ?? Data("\(Array(turns))".utf8)
   }
 
   private var engines: [String: Engine] = [:]
@@ -140,7 +150,11 @@ final class LlmBridge: NSObject, FlutterStreamHandler {
     } catch where wantsGpu {
       engine = try make(false)
     }
-    lock.withLock { engines[id] = engine }
+    lock.withLock {
+      // Conversations belong to the engine they were made on: drop them with it.
+      sessions = sessions.filter { $0.value.modelId != id }
+      engines[id] = engine
+    }
   }
 
   private func message(_ t: [String: Any]) -> Message {
@@ -188,7 +202,11 @@ final class LlmBridge: NSObject, FlutterStreamHandler {
       let samplerKey = ["temperature", "topK", "topP", "maxTokens"].map { "\(sampler[$0] ?? "")" }.joined(separator: ",")
       let key = "\(modelId)|\(system.hashValue)|\(samplerKey)"
       var session = lock.withLock { sessions[sessionId] }
-      if session == nil || session!.key != key || session!.synced != history.count - 1 {
+      let reusable = session.map {
+        $0.key == key && $0.synced == history.count - 1 && history.count >= $0.prefixLen
+          && fingerprint(history.prefix($0.prefixLen)) == $0.prefix
+      } ?? false
+      if !reusable {
         let config = ConversationConfig(
           systemMessage: system.isEmpty ? nil : Message(system, role: .system),
           initialMessages: history.dropLast().map(message),
@@ -199,7 +217,8 @@ final class LlmBridge: NSObject, FlutterStreamHandler {
           ),
           automaticToolCalling: false
         )
-        let s = Session(conversation: try engine.createConversation(with: config), modelId: modelId, key: key, synced: history.count - 1)
+        let s = Session(conversation: try engine.createConversation(with: config), modelId: modelId, key: key, synced: history.count - 1,
+          prefixLen: history.count - 1, prefix: fingerprint(history.dropLast()))
         lock.withLock { sessions[sessionId] = s }
         session = s
       }
@@ -222,6 +241,8 @@ final class LlmBridge: NSObject, FlutterStreamHandler {
         }
       }
       session!.synced = history.count + 1
+      session!.prefixLen = history.count
+      session!.prefix = fingerprint(history[...])
       lock.withLock { active[requestId] = nil }
       var stats: [String: Any] = [
         "ttftMs": Int((firstToken ?? started).timeIntervalSince(started) * 1000),

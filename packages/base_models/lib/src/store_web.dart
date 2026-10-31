@@ -30,6 +30,8 @@ class WebModelStore extends ModelStore {
 
   final _states = <String, ModelState>{};
   final _cancels = <String, web.XMLHttpRequest>{};
+  // Installs cancelled after their request finished (hashing, caching, registering).
+  final _cancelled = <String>{};
   final _installing = <String>{};
   final _inflight = <String, Future<void>>{};
 
@@ -97,6 +99,7 @@ class WebModelStore extends ModelStore {
       if ((options.offline?.call() ?? false) && !await _cached(spec)) throw OfflineException(spec.name);
       final cache = await web.window.caches.open(_cacheName).toDart;
       _installing.add(id);
+      _cancelled.remove(id);
       _set(id, const ModelState(ModelStatus.downloading));
       var total = 0;
       try {
@@ -118,11 +121,14 @@ class WebModelStore extends ModelStore {
             final got = crypto.sha256.convert(bytes).toString();
             if (got != want) throw ChecksumMismatch(f.name, want, got);
           }
+          if (_cancelled.contains(id)) throw DownloadCancelled();
           await cache.put(f.url.toJS, web.Response(bytes.toJS)).toDart;
           options.onNetworkBytes?.call(bytes.length);
           done += bytes.length;
           total += bytes.length;
         }
+        // A cancel (or wipe) after the last request still wins: no claim is written.
+        if (_cancelled.contains(id)) throw DownloadCancelled();
       } on DownloadCancelled {
         _installing.remove(id);
         _set(id, ModelState.absent);
@@ -189,7 +195,10 @@ class WebModelStore extends ModelStore {
   }
 
   @override
-  void cancel(String id) => _cancels[id]?.abort();
+  void cancel(String id) {
+    if (_installing.contains(id)) _cancelled.add(id);
+    _cancels[id]?.abort();
+  }
 
   @override
   Future<void> touchClaims() async {

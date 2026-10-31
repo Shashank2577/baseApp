@@ -178,15 +178,25 @@ class IoModelStore extends ModelStore {
     if (stateOf(spec.id).isReady && await _claim(spec.id)) return;
     final dir = Directory(pathOf(spec.id))..createSync(recursive: true);
     final lockFile = await File(p.join(dir.path, '.download.lock')).open(mode: FileMode.append);
+    // Registered before waiting for the lock, so cancel (and wipe) work while
+    // another app holds it.
+    final cancel = _cancels[spec.id] = _Cancel();
+    var locked = false;
     try {
       // Another app on this device may be downloading the same model.
       while (true) {
+        if (cancel.cancelled) {
+          _set(spec.id, ModelState.absent);
+          throw DownloadCancelled();
+        }
         try {
           await lockFile.lock(FileLock.exclusive);
+          locked = true;
           break;
         } on FileSystemException {
           _set(spec.id, stateOf(spec.id).copyWith(status: ModelStatus.downloading, busyElsewhere: true));
           await Future<void>.delayed(const Duration(seconds: 2));
+          if (cancel.cancelled) continue;
           final entry = (await _readRegistry())['models']?[spec.id] as Map?;
           if (entry != null && _filesPresent(spec, entry)) {
             await refresh();
@@ -194,9 +204,12 @@ class IoModelStore extends ModelStore {
           }
         }
       }
+      if (cancel.cancelled) {
+        _set(spec.id, ModelState.absent);
+        throw DownloadCancelled();
+      }
       await refresh();
       if (stateOf(spec.id).isReady && await _claim(spec.id)) return;
-      final cancel = _cancels[spec.id] = _Cancel();
       _installing.add(spec.id);
       _set(spec.id, ModelState(ModelStatus.downloading, progress: 0, users: stateOf(spec.id).users));
       try {
@@ -213,14 +226,15 @@ class IoModelStore extends ModelStore {
         _installing.remove(spec.id);
         _set(spec.id, ModelState(ModelStatus.failed, error: e.toString()));
         rethrow;
-      } finally {
-        _cancels.remove(spec.id);
       }
     } finally {
-      try {
-        await lockFile.unlock();
-      } on FileSystemException {
-        // Already released.
+      if (identical(_cancels[spec.id], cancel)) _cancels.remove(spec.id);
+      if (locked) {
+        try {
+          await lockFile.unlock();
+        } on FileSystemException {
+          // Already released.
+        }
       }
       await lockFile.close();
     }
