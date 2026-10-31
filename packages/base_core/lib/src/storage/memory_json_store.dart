@@ -8,6 +8,9 @@ class MemoryJsonStore implements JsonStore {
   String? get filesDir => null;
 
   @override
+  Future<void> deleteFiles() async {}
+
+  @override
   Future<Object?> read(String key) async => data[key];
 
   @override

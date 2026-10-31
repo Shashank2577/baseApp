@@ -17,4 +17,7 @@ abstract class JsonStore {
 
   /// Directory for imported attachments (photos, audio, documents).
   String? get filesDir;
+
+  /// Deletes everything in [filesDir] (imported photos, audio, documents).
+  Future<void> deleteFiles();
 }

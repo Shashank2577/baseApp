@@ -17,6 +17,9 @@ class _PrefsStore implements JsonStore {
   String? get filesDir => null;
 
   @override
+  Future<void> deleteFiles() async {}
+
+  @override
   Future<Object?> read(String key) async {
     final s = _prefs.getString('$_ns$key');
     return s == null ? null : jsonDecode(s);

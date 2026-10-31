@@ -34,12 +34,31 @@ class _FileStore implements JsonStore {
     }
   }
 
+  final _queues = <String, Future<void>>{};
+  var _seq = 0;
+
+  /// Writes to one document run one after another (the ledger saves often),
+  /// each through its own temp file, then an atomic rename.
   @override
-  Future<void> write(String key, Object? value) async {
-    final f = _file(key);
-    final tmp = File('${f.path}.tmp');
-    await tmp.writeAsString(jsonEncode(value), flush: true);
-    await tmp.rename(f.path);
+  Future<void> write(String key, Object? value) {
+    final encoded = jsonEncode(value);
+    final next = (_queues[key] ?? Future<void>.value()).then((_) async {
+      final f = _file(key);
+      final tmp = File('${f.path}.${_seq++}.tmp');
+      await tmp.writeAsString(encoded, flush: true);
+      await tmp.rename(f.path);
+    });
+    _queues[key] = next.catchError((_) {});
+    return next;
+  }
+
+  @override
+  Future<void> deleteFiles() async {
+    final dir = Directory(filesDir);
+    if (!dir.existsSync()) return;
+    for (final e in dir.listSync()) {
+      e.deleteSync(recursive: true);
+    }
   }
 
   @override

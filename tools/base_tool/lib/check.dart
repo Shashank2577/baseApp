@@ -112,8 +112,14 @@ List<Finding> _checkApp(Workspace ws, Directory app, Set<String> members) {
     }
   }
   final gradle = File(p.join(app.path, 'android', 'app', 'build.gradle.kts'));
-  if (!gradle.existsSync() || !gradle.readAsStringSync().contains('baseModelsPermission')) {
-    out.add(Finding(true, '$rel/android/app/build.gradle.kts', 'must set the baseModelsPermission manifest placeholders'));
+  final gradleText = gradle.existsSync() ? gradle.readAsStringSync() : '';
+  final shared = ws.platform['sharedModels'] as YamlMap;
+  for (final (placeholder, key) in [('baseModelsPermission', 'androidPermission'), ('baseModelsDiscoveryAction', 'androidDiscoveryAction')]) {
+    // The value must match platform.yaml, or this app stops finding its siblings.
+    final want = 'manifestPlaceholders["$placeholder"] = "${shared[key]}"';
+    if (!gradleText.contains(want)) {
+      out.add(Finding(true, '$rel/android/app/build.gradle.kts', 'must contain $want (platform.yaml → sharedModels.$key)'));
+    }
   }
   return out;
 }

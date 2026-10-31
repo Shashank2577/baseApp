@@ -39,7 +39,7 @@ class BaseServices {
         useNativeLocation: useNativeLocation,
         sdkInstaller: runtime.isDemo ? null : runtime.installSdkModel,
         headersFor: (f) =>
-            settings.hfToken.isNotEmpty && f.url.contains('huggingface.co') ? {'Authorization': 'Bearer ${settings.hfToken}'} : const {},
+            settings.hfToken.isNotEmpty && isHuggingFaceUrl(f.url) ? {'Authorization': 'Bearer ${settings.hfToken}'} : const {},
         onNetworkBytes: ledger.addBytes,
       ),
     );
@@ -90,9 +90,17 @@ class BaseServices {
     for (final k in await store.keys('')) {
       await store.delete(k);
     }
+    await store.deleteFiles();
     await ledger.clear();
     await settings.reset();
   }
+}
+
+/// The token is sent to huggingface.co only: the exact host over https, never
+/// a URL that merely mentions it (huggingface.co.attacker.example).
+bool isHuggingFaceUrl(String url) {
+  final u = Uri.tryParse(url);
+  return u != null && u.scheme == 'https' && u.host == 'huggingface.co';
 }
 
 class BaseScope extends InheritedWidget {

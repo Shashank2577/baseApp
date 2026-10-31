@@ -50,6 +50,13 @@ void main() {
     expect(s.models.location.path, models.path);
   });
 
+  test('the Hugging Face token only goes to huggingface.co itself', () {
+    expect(isHuggingFaceUrl('https://huggingface.co/org/repo/resolve/main/m.bin'), isTrue);
+    expect(isHuggingFaceUrl('https://huggingface.co.attacker.example/m.bin'), isFalse);
+    expect(isHuggingFaceUrl('https://evil.example/huggingface.co/m.bin'), isFalse);
+    expect(isHuggingFaceUrl('http://huggingface.co/m.bin'), isFalse);
+  });
+
   test('formatBytes and greeting', () {
     expect(formatBytes(2588147712), '2.6 GB');
     expect(formatBytes(164626432), '165 MB');

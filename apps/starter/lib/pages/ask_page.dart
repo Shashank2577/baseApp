@@ -36,8 +36,9 @@ class _AskPageState extends State<AskPage> {
       )) {
         if (e is TokenEvent) setState(() => _answer += e.text);
         if (e is ErrorEvent) setState(() => _answer = e.message);
+        // Only a finished answer counts; an error is not "answered".
+        if (e is DoneEvent) s.ledger.add(AppLedger.questions);
       }
-      s.ledger.add(AppLedger.questions);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -208,6 +208,8 @@ class IoModelStore extends ModelStore {
       _set(spec.id, ModelState(ModelStatus.downloading, progress: 0, users: stateOf(spec.id).users));
       try {
         final recorded = spec.source == ModelSource.sdk ? await _installSdk(spec, cancel) : await _installFiles(spec, cancel);
+        // A cancel (or wipe) that landed after the last chunk still wins.
+        if (cancel.cancelled) throw DownloadCancelled();
         _installing.remove(spec.id);
         await _register(spec, recorded);
       } on DownloadCancelled {
