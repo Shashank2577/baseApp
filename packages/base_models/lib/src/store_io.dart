@@ -55,15 +55,8 @@ Future<SharedLocation> resolveLocation(StoreOptions o) async {
       'shared by every $vendor app on this computer',
     );
   }
-  if (Platform.isMacOS) {
-    // Not sandboxed (development builds): a plain folder every app can reach.
-    final home = Platform.environment['HOME'] ?? '.';
-    return SharedLocation(
-      p.join(home, 'Library', 'Application Support', vendor, folder),
-      ShareScope.device,
-      'shared by every $vendor app on this Mac',
-    );
-  }
+  // macOS without the App Group lands here too: a sandboxed app may only write
+  // inside its own container, so the honest fallback is this app's support folder.
   final support = await getApplicationSupportDirectory();
   return SharedLocation(p.join(support.path, folder), ShareScope.appOnly, 'this app only (the App Group is not set up)');
 }

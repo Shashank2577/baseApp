@@ -16,8 +16,7 @@ The location comes from `platform.yaml` (`vendor`, `sharedModels`), so every app
 | Platform | Location | How apps share it |
 | --- | --- | --- |
 | **iOS** | App Group container `group.com.showcase.shared` / `SharedModels` | In place. Every app joins the same App Group (entitlement). |
-| **macOS** (store / sandboxed) | App Group container, same group | In place. On macOS a team-prefixed id (`TEAMID.group…`) also works. |
-| **macOS** (dev, not sandboxed) | `~/Library/Application Support/Showcase Labs/SharedModels` | In place. |
+| **macOS** | App Group container, same group | In place. On macOS a team-prefixed id (`TEAMID.group…`) also works. |
 | **Windows** | `%LOCALAPPDATA%\Showcase Labs\SharedModels` | In place. |
 | **Linux** | `$XDG_DATA_HOME/showcase/sharedmodels` (default `~/.local/share/…`) | In place. |
 | **Android** | each app's `noBackupFilesDir/shared-models` (kept out of Auto Backup) | **Copy, not download.** See below. |

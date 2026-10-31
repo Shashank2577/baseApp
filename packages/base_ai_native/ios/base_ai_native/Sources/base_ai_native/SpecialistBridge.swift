@@ -107,7 +107,10 @@ final class SpecialistBridge: NSObject, FlutterStreamHandler {
     case "availability":
       var map: [String: String] = [:]
       for k in ["voz", "who", "ear", "clear", "uhm", "redact", "tongue", "emo", "gist", "eye", "moderator", "align", "title", "clips", "shapes"] {
-        map["desertant.\(k)"] = Self.available.contains(k) ? "native" : "unsupported"
+        // Clear, Uhm and Moderator fetch weights on first use, which the shared
+        // store can't track, so they are not offered on iOS yet.
+        let lazy: Set<String> = ["clear", "uhm", "moderator"]
+        map["desertant.\(k)"] = Self.available.contains(k) && !lazy.contains(k) ? "native" : "unsupported"
       }
       result(map)
     case "isDownloaded":
