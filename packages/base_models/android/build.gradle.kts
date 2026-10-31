@@ -46,15 +46,16 @@ android {
 
     defaultConfig {
         minSdk = 26 // java.nio.file and java.time in SharedModelStore
-        // Only for this library's own unit-test manifest; each app sets the
-        // real values from platform.yaml (./base check enforces them).
-        manifestPlaceholders["baseModelsPermission"] = "test.permission.SHARED_MODELS"
-        manifestPlaceholders["baseModelsDiscoveryAction"] = "test.action.SHARED_MODELS"
+        // No manifestPlaceholders here: a library's own values are filled in when
+        // the library is built and would beat the app's. Each app sets the real
+        // ones from platform.yaml (./base check enforces them).
     }
 
     testOptions {
         unitTests {
-            isIncludeAndroidResources = true
+            // Off: the tests are plain JVM code, and the test manifest would need the
+            // placeholders that only an app may set.
+            isIncludeAndroidResources = false
             all {
                 it.useJUnitPlatform()
 
