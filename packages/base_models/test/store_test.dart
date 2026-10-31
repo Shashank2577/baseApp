@@ -367,6 +367,19 @@ Future<void> main(List<String> args) async {
     expect(Directory(a.pathOf('test.tiny')).listSync().map((e) => p.basename(e.path)), isNot(contains('weights.bin')));
   });
 
+  test('files an app downloaded before the store are adopted, not downloaded again', () async {
+    final old = File(p.join(Directory.systemTemp.createTempSync('old-').path, 'model.bin'))..writeAsBytesSync(payload);
+    final a = await open('app.a');
+    expect(await a.adopt('test.tiny', {'weights.bin': old.path}), isTrue);
+    expect(a.isReady('test.tiny'), isTrue);
+    expect(old.existsSync(), isFalse, reason: 'moved, not copied');
+    expect(requests, 0);
+    final wrong = File(p.join(old.parent.path, 'wrong.bin'))..writeAsBytesSync([1, 2, 3]);
+    await a.release('test.tiny');
+    expect(await a.adopt('test.tiny', {'weights.bin': wrong.path}), isFalse);
+    expect(wrong.existsSync(), isTrue);
+  });
+
   test('the shared catalog is valid', () {
     final c = ModelCatalog();
     expect(c.all.length, greaterThan(20));

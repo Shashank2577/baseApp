@@ -1,9 +1,6 @@
 package dev.baseplatform.base_models
 
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -11,14 +8,15 @@ import java.io.File
 import java.util.concurrent.Executors
 
 /**
- * Android side of the shared model store.
+ * Flutter side of the shared model store on Android. The store logic lives in
+ * Dart (store_io.dart); this plugin gives it the store folder and the sibling
+ * apps ([AndroidSiblings], [BaseModelsProvider]), the same classes native
+ * Kotlin apps use through [SharedModelStore].
  *
  * Android gives every app its own private storage, so apps cannot open one
  * folder in place the way iOS App Groups or a desktop folder can. Instead each
- * app keeps its models in `filesDir/shared-models`, and before downloading a
- * model it asks its sibling apps (same signing key, found through
- * [BaseModelsProvider]) for a copy. The model crosses the network once per
- * device; each app that uses it keeps its own copy on disk.
+ * app keeps its models in `noBackupFilesDir/shared-models`, and before
+ * downloading a model it asks its sibling apps (same signing key) for a copy.
  */
 class BaseModelsPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private lateinit var channel: MethodChannel
@@ -38,15 +36,26 @@ class BaseModelsPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "storeDir" -> result.success(storeDir(context).path)
-            "siblings" -> result.success(siblings(call.argument<String>("action")!!))
+            "storeDir" -> result.success(SharedModelStore.storeDir(context).path)
+            "siblings" -> result.success(AndroidSiblings(context, call.argument<String>("action")!!).authorities())
+            "siblingModels" -> io.execute {
+                val list = try {
+                    AndroidSiblings(context, call.argument<String>("action")!!).listAll().map {
+                        mapOf("authority" to it.authority, "modelId" to it.modelId, "file" to it.file, "bytes" to it.bytes, "sha256" to it.sha256)
+                    }
+                } catch (e: Exception) {
+                    emptyList()
+                }
+                post { result.success(list) }
+            }
             "copyFromSibling" -> io.execute {
                 try {
-                    val bytes = copyFromSibling(
+                    // The authority names the sibling; the action is not needed to copy.
+                    val bytes = AndroidSiblings(context, "").copy(
                         call.argument<String>("authority")!!,
                         call.argument<String>("modelId")!!,
                         call.argument<String>("file")!!,
-                        call.argument<String>("dest")!!,
+                        File(call.argument<String>("dest")!!),
                     )
                     post { result.success(bytes) }
                 } catch (e: Exception) {
@@ -58,32 +67,4 @@ class BaseModelsPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     }
 
     private fun post(block: () -> Unit) = android.os.Handler(android.os.Looper.getMainLooper()).post(block)
-
-    /** Providers of other installed apps that answer the platform's discovery action. */
-    private fun siblings(action: String): List<String> {
-        val pm = context.packageManager
-        val found = if (android.os.Build.VERSION.SDK_INT >= 33) {
-            pm.queryIntentContentProviders(Intent(action), PackageManager.ResolveInfoFlags.of(0))
-        } else {
-            @Suppress("DEPRECATION")
-            pm.queryIntentContentProviders(Intent(action), 0)
-        }
-        return found.mapNotNull { it.providerInfo }
-            .filter { it.packageName != context.packageName }
-            .map { it.authority }
-    }
-
-    private fun copyFromSibling(authority: String, modelId: String, file: String, dest: String): Long {
-        require(BaseModelsProvider.isPlainName(modelId) && BaseModelsProvider.isPlainName(file)) { "bad name" }
-        val out = File(dest)
-        require(out.canonicalPath.startsWith(storeDir(context).canonicalPath)) { "destination outside the store" }
-        val uri = Uri.parse("content://$authority/$modelId/$file")
-        val input = context.contentResolver.openInputStream(uri) ?: error("$authority has no $modelId/$file")
-        input.use { src -> out.outputStream().use { dst -> return src.copyTo(dst, 1 shl 20) } }
-    }
-
-    companion object {
-        // noBackupFilesDir: gigabytes of re-downloadable weights would blow Auto Backup's 25 MB quota.
-        fun storeDir(context: Context): File = File(context.noBackupFilesDir, "shared-models").apply { mkdirs() }
-    }
 }

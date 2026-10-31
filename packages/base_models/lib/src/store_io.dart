@@ -71,6 +71,19 @@ Future<SharedLocation> resolveLocation(StoreOptions o) async {
 abstract class SiblingSource {
   Future<List<String>> authorities();
   Future<int> copy(String authority, String modelId, String file, String dest);
+
+  /// Every complete file the siblings hold (their providers' `models` table).
+  Future<List<SiblingFile>> listAll();
+}
+
+/// One file a sibling app can hand over.
+class SiblingFile {
+  const SiblingFile(this.authority, this.modelId, this.file, this.bytes, this.sha256);
+  final String authority;
+  final String modelId;
+  final String file;
+  final int bytes;
+  final String? sha256;
 }
 
 class AndroidSiblings implements SiblingSource {
@@ -81,6 +94,12 @@ class AndroidSiblings implements SiblingSource {
   @override
   Future<int> copy(String authority, String modelId, String file, String dest) async =>
       (await _channel.invokeMethod<int>('copyFromSibling', {'authority': authority, 'modelId': modelId, 'file': file, 'dest': dest}))!;
+
+  @override
+  Future<List<SiblingFile>> listAll() async => [
+    for (final r in (await _channel.invokeListMethod<Map>('siblingModels', {'action': PlatformConfig.androidDiscoveryAction})) ?? const [])
+      SiblingFile(r['authority'] as String, r['modelId'] as String, r['file'] as String, (r['bytes'] as num).toInt(), r['sha256'] as String?),
+  ];
 }
 
 class _Cancel {
@@ -155,16 +174,49 @@ class IoModelStore extends ModelStore {
   @override
   Future<void> refresh() async {
     _registry = await _readRegistry();
+    _siblingFiles = await _listSiblings();
     for (final m in catalog.all) {
       final current = _states[m.id];
       if (current != null && _installing.contains(m.id)) continue;
       final entry = _models[m.id] as Map?;
       final users = ((entry?['users'] as Map?) ?? const {}).keys.cast<String>().toSet();
       final ready = entry != null && _filesPresent(m, entry);
-      _states[m.id] = ModelState(ready ? ModelStatus.ready : ModelStatus.absent, users: ready ? users : const {});
+      _states[m.id] = ModelState(
+        ready ? ModelStatus.ready : ModelStatus.absent,
+        users: ready ? users : const {},
+        inSibling: !ready && _siblingHasAll(m),
+      );
     }
     notifyListeners();
   }
+
+  /// Sibling files by model id, then file name (Android; empty elsewhere).
+  Map<String, Map<String, List<SiblingFile>>> _siblingFiles = const {};
+
+  Future<Map<String, Map<String, List<SiblingFile>>>> _listSiblings() async {
+    final s = siblings;
+    if (s == null) return const {};
+    final out = <String, Map<String, List<SiblingFile>>>{};
+    try {
+      for (final f in await s.listAll()) {
+        ((out[f.modelId] ??= {})[f.file] ??= []).add(f);
+      }
+    } on Object {
+      return const {};
+    }
+    return out;
+  }
+
+  /// Whether some sibling holds every file of [m] with the catalog's size and checksum.
+  bool _siblingHasAll(ModelSpec m) {
+    if (m.source != ModelSource.file || m.files.isEmpty) return false;
+    final have = _siblingFiles[m.id];
+    if (have == null) return false;
+    return m.files.every((f) => (have[f.name] ?? const []).any((s) => _matches(f, s)));
+  }
+
+  static bool _matches(ModelFile f, SiblingFile s) =>
+      (f.bytes == null || f.bytes == s.bytes) && (f.sha256 == null || s.sha256 == null || f.sha256 == s.sha256);
 
   bool _filesPresent(ModelSpec m, Map entry) {
     if (m.source == ModelSource.sdk) {
@@ -280,7 +332,10 @@ class IoModelStore extends ModelStore {
     final installer = options.sdkInstaller;
     if (installer == null) throw StateError('${spec.name} is installed by its SDK, and this app has no SdkInstaller wired up.');
     final bundled = spec.sdk!.bundled;
-    if (_offline && !bundled) throw OfflineException(spec.name);
+    // A sibling's SDK folder (Android), copied file by file, saves the download
+    // when the SDK accepts it; the installer then finds the weights in place.
+    final fromSibling = await _copySdkFromSibling(spec, cancel);
+    if (_offline && !bundled && !fromSibling) throw OfflineException(spec.name);
     await installer(spec.id, spec.sdk!.key, pathOf(spec.id), (f) {
       if (cancel.cancelled) throw DownloadCancelled();
       _set(spec.id, stateOf(spec.id).copyWith(status: ModelStatus.downloading, progress: f));
@@ -288,8 +343,51 @@ class IoModelStore extends ModelStore {
     final bytes = _dirSize(Directory(pathOf(spec.id)));
     // The SDK downloads on its own; count what it wrote to the store as received
     // (on iOS it writes elsewhere, so this undercounts there; see docs/MODEL_STORE.md).
-    if (!bundled && bytes > 0) options.onNetworkBytes?.call(bytes);
-    return {'sdkReady': true, 'sdkBytes': bytes, 'sdkSource': bundled ? 'bundled' : 'network'};
+    if (!bundled && !fromSibling && bytes > 0) options.onNetworkBytes?.call(bytes);
+    return {
+      'sdkReady': true,
+      'sdkBytes': bytes,
+      'sdkSource': bundled ? 'bundled' : (fromSibling ? 'sibling' : 'network'),
+      ...?_sdkFileList(Directory(pathOf(spec.id))),
+    };
+  }
+
+  /// Flat SDK folders only: `{sdkFiles: {name: {bytes}}}`, so siblings can copy them.
+  Map<String, dynamic>? _sdkFileList(Directory dir) {
+    if (!dir.existsSync()) return null;
+    final entries = dir.listSync().where((e) => !p.basename(e.path).startsWith('.')).toList();
+    if (entries.isEmpty || entries.any((e) => e is! File)) return null;
+    return {
+      'sdkFiles': {for (final f in entries.cast<File>()) p.basename(f.path): {'bytes': f.lengthSync()}},
+    };
+  }
+
+  Future<bool> _copySdkFromSibling(ModelSpec spec, _Cancel cancel) async {
+    final s = siblings;
+    final listed = _siblingFiles[spec.id];
+    if (s == null || listed == null) return false;
+    final byAuthority = <String, List<SiblingFile>>{};
+    for (final f in listed.values.expand((x) => x)) {
+      (byAuthority[f.authority] ??= []).add(f);
+    }
+    final dir = Directory(pathOf(spec.id))..createSync(recursive: true);
+    for (final MapEntry(key: authority, value: files) in byAuthority.entries) {
+      if (cancel.cancelled) throw DownloadCancelled();
+      try {
+        for (final f in files) {
+          final part = p.join(dir.path, '${f.file}.part');
+          await s.copy(authority, spec.id, f.file, part);
+          if (File(part).lengthSync() != f.bytes) throw const FileSystemException('short copy');
+          await File(part).rename(p.join(dir.path, f.file));
+        }
+        return true;
+      } on Object {
+        for (final e in dir.listSync().whereType<File>().where((f) => f.path.endsWith('.part'))) {
+          e.deleteSync();
+        }
+      }
+    }
+    return false;
   }
 
   Future<Map<String, dynamic>> _installFiles(ModelSpec spec, _Cancel cancel) async {
@@ -317,7 +415,10 @@ class IoModelStore extends ModelStore {
   Future<bool> _copyFromSibling(ModelSpec spec, ModelFile f, String dest, _Cancel cancel) async {
     final s = siblings;
     if (s == null) return false;
-    for (final authority in await s.authorities()) {
+    // Siblings that list the file first; then any other (an older provider without the list).
+    final listed = [for (final x in _siblingFiles[spec.id]?[f.name] ?? const <SiblingFile>[]) if (_matches(f, x)) x.authority];
+    final all = await s.authorities();
+    for (final authority in {...listed.where(all.contains), ...all}) {
       if (cancel.cancelled) throw DownloadCancelled();
       try {
         await s.copy(authority, spec.id, f.name, '$dest.part');
@@ -460,6 +561,33 @@ class IoModelStore extends ModelStore {
       if (catalog.byId(e.key as String) != null && (((e.value as Map)['users'] as Map?)?.containsKey(options.appId) ?? false))
         e.key as String,
   };
+
+  @override
+  Future<bool> adopt(String id, Map<String, String> files) async {
+    final spec = catalog.byId(id);
+    if (spec == null || spec.source != ModelSource.file || isReady(id)) return false;
+    if (spec.files.any((f) => files[f.name] == null || !File(files[f.name]!).existsSync())) return false;
+    for (final f in spec.files) {
+      final src = File(files[f.name]!);
+      if (f.bytes != null && src.lengthSync() != f.bytes) return false;
+      if (f.sha256 != null && (await crypto.sha256.bind(src.openRead()).first).toString() != f.sha256) return false;
+    }
+    final recorded = <String, dynamic>{};
+    Directory(pathOf(id)).createSync(recursive: true);
+    for (final f in spec.files) {
+      final dest = pathOf(id, f.name);
+      try {
+        File(files[f.name]!).renameSync(dest);
+      } on FileSystemException {
+        // Another volume: copy, then delete the old file.
+        File(files[f.name]!).copySync(dest);
+        File(files[f.name]!).deleteSync();
+      }
+      recorded[f.name] = {'bytes': File(dest).lengthSync(), 'sha256': f.sha256, 'source': 'network'};
+    }
+    await _register(spec, {'files': recorded});
+    return true;
+  }
 
   @override
   Future<void> release(String id) => _mutate((models) {

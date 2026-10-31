@@ -45,7 +45,11 @@ android {
     }
 
     defaultConfig {
-        minSdk = 24
+        minSdk = 26 // java.nio.file and java.time in SharedModelStore
+        // Only for this library's own unit-test manifest; each app sets the
+        // real values from platform.yaml (./base check enforces them).
+        manifestPlaceholders["baseModelsPermission"] = "test.permission.SHARED_MODELS"
+        manifestPlaceholders["baseModelsDiscoveryAction"] = "test.action.SHARED_MODELS"
     }
 
     testOptions {
@@ -73,5 +77,7 @@ kotlin {
 
 dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test")
+    // Real org.json for JVM unit tests (android.jar only has stubs).
+    testImplementation("org.json:json:20250517")
     testImplementation("org.mockito:mockito-core:5.0.0")
 }

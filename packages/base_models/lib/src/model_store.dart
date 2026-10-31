@@ -89,6 +89,12 @@ abstract class ModelStore extends ChangeNotifier {
   /// This app no longer needs the model. The files go when no app needs them.
   Future<void> release(String id);
 
+  /// Moves files an app downloaded before it used the store (`{file name:
+  /// path}`) into it, so an update doesn't download them again. Every file of
+  /// the model must be given and match the catalog's size and checksum;
+  /// otherwise nothing moves and this returns false. Not supported on web.
+  Future<bool> adopt(String id, Map<String, String> files) async => false;
+
   /// Removes the model for every app on the device.
   Future<void> deleteEverywhere(String id);
 

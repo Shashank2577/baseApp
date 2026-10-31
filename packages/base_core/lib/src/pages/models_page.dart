@@ -72,6 +72,7 @@ class _ModelRow extends StatelessWidget {
       formatBytes(spec.bytes),
       spec.role,
       if (others > 0) 'shared with $others other app${others == 1 ? '' : 's'}',
+      if (state.inSibling) 'on this phone in another app, no download',
       if (required) 'needed',
     ].join(' · ');
 
@@ -86,6 +87,9 @@ class _ModelRow extends StatelessWidget {
       case ModelStatus.absent || ModelStatus.failed when spec.source == ModelSource.sdk && s.ai.isDemo:
         // SDK models install through the native engine; the demo build has none.
         action = const SizedBox(width: 96, child: Meta('needs the on-device engine', textAlign: TextAlign.end));
+      case ModelStatus.absent when state.inSibling:
+        // Another app on this phone has it: using it copies the files, no download.
+        action = PillButton('use', onPressed: () => _run(context, () => s.ensureModel(spec.id)));
       case ModelStatus.absent:
       case ModelStatus.failed:
         action = PillButton(

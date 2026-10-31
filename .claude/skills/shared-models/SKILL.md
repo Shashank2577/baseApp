@@ -56,7 +56,7 @@ Rules: ids never change once shipped (they are folder names on users' devices); 
 
 ## Change how the store works
 
-The store is in `packages/base_models/lib/src/store_io.dart` (Android, iOS, macOS, Windows, Linux) and `store_web.dart` (browser). Native parts: `android/…/BaseModelsPlugin.kt` + `BaseModelsProvider.kt` (sibling copy), `ios|macos/…/BaseModelsPlugin.swift` (App Group). Keep these invariants, and extend `test/store_test.dart` for any change:
+The store is in `packages/base_models/lib/src/store_io.dart` (Android, iOS, macOS, Windows, Linux) and `store_web.dart` (browser). Native parts: `android/…/SharedModelStore.kt` (the whole store in Kotlin, for native Android apps such as Burrow), `AndroidSiblings.kt` + `BaseModelsProvider.kt` (sibling listing and copy), `BaseModelsPlugin.kt` (the Flutter channel), `ios|macos/…/BaseModelsPlugin.swift` (App Group). The Dart and Kotlin stores implement one standard (protocol v1, `docs/MODEL_STORE.md`): change both together, run both test suites (`flutter test packages/base_models` and, from `apps/starter/android`, `./gradlew :base_models:testDebugUnitTest`), then `./base sync` so Burrow gets the Kotlin files. Keep these invariants, and extend `test/store_test.dart` for any change:
 
 - ready = registry entry + every file present at its recorded size;
 - downloads go through `.part`, resume with `Range`, verify SHA-256 before the rename;

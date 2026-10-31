@@ -2,7 +2,14 @@ enum ModelStatus { absent, downloading, ready, failed }
 
 /// What this device knows about one model.
 class ModelState {
-  const ModelState(this.status, {this.progress = 0, this.error, this.users = const {}, this.busyElsewhere = false});
+  const ModelState(
+    this.status, {
+    this.progress = 0,
+    this.error,
+    this.users = const {},
+    this.busyElsewhere = false,
+    this.inSibling = false,
+  });
 
   static const absent = ModelState(ModelStatus.absent);
 
@@ -18,15 +25,21 @@ class ModelState {
   /// Another app on this device is downloading it right now.
   final bool busyElsewhere;
 
+  /// Not in this app's store yet, but another app on this device has every
+  /// file (Android): using it copies them, with no download.
+  final bool inSibling;
+
   bool get isReady => status == ModelStatus.ready;
 
-  ModelState copyWith({ModelStatus? status, double? progress, String? error, Set<String>? users, bool? busyElsewhere}) => ModelState(
-    status ?? this.status,
-    progress: progress ?? this.progress,
-    error: error,
-    users: users ?? this.users,
-    busyElsewhere: busyElsewhere ?? this.busyElsewhere,
-  );
+  ModelState copyWith({ModelStatus? status, double? progress, String? error, Set<String>? users, bool? busyElsewhere, bool? inSibling}) =>
+      ModelState(
+        status ?? this.status,
+        progress: progress ?? this.progress,
+        error: error,
+        users: users ?? this.users,
+        busyElsewhere: busyElsewhere ?? this.busyElsewhere,
+        inSibling: inSibling ?? this.inSibling,
+      );
 }
 
 /// Thrown when a model is needed but the user has turned on "never go online".

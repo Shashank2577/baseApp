@@ -6,7 +6,7 @@ The platform every app is built on: a Flutter pub workspace (`packages/`, `apps/
 
 - **A change that a second app could want never lives in an app.** It goes in a package, in `design/`, in `catalog/models.json` or in `platform.yaml`. Use the `propagate-change` skill for any change made in, or noticed in, one app.
 - **Never edit generated files** (`*/generated/*`, `generated/`). Edit the source and run `./base gen`.
-- **Models only through the shared store** (`BaseScope.of(context).ensureModel` / `models.pathOf`); never download or store a model anywhere else. Skill: `shared-models`.
+- **Models only through the shared store** (`BaseScope.of(context).ensureModel` / `models.pathOf`); never download or store a model anywhere else. Apps outside this repo follow the same standard (protocol v1 in `docs/MODEL_STORE.md`): Flutter through `base_models`, Kotlin through the synced `:basemodels` module. Skill: `shared-models`.
 - **UI only from `base_design`**: `context.colors`, `context.type`, `DoodleIcon`, the components. No hex colours, font names, Material icons or Material buttons in app code. Skill: `design-system`.
 - **Every app keeps all six platform folders**, the App Group entitlements (iOS, macOS) and the Android shared-model placeholders.
 - `platform.yaml → sharedModels` must not change after the first release (it moves every user's models).
@@ -24,6 +24,10 @@ flutter test packages/base_design packages/base_models packages/base_core apps/*
 ```
 
 Widget tests that build `BaseServices` must create them inside `tester.runAsync` (they do real file IO) and pass them in with `Future.value(...)`; don't `pumpAndSettle` on a page with an indeterminate `HandProgress`.
+
+## Review
+
+Pull requests are reviewed with [Cairn](https://github.com/Shashank2577/cairn), not Codex. Set it up once per clone: `uv tool install --python 3.12 cairn-brain`, then run `cairn` in the repo root (it adds the `cairn` MCP server, the `cairn-reviewer` sub-agent and git hooks; `cairn uninstall` removes them). Before merging, run the `cairn-reviewer` sub-agent on the branch, or `cairn review-context --files "$(git diff --name-only origin/main... | paste -sd, -)"` for the context pack, and fix what it flags. Record durable lessons with `cairn remember`.
 
 ## Skills
 

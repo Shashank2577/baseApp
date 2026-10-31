@@ -24,6 +24,9 @@
             android:authorities="${applicationId}.basemodels"
             android:exported="true"
             android:readPermission="${baseModelsPermission}">
+            <meta-data
+                android:name="dev.baseplatform.base_models.ACTION"
+                android:value="${baseModelsDiscoveryAction}" />
             <intent-filter>
                 <action android:name="${baseModelsDiscoveryAction}" />
             </intent-filter>

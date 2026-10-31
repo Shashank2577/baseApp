@@ -28,11 +28,18 @@ downstream:
     files:
       # Outside the source set until Theme.kt is wired to it (see its base-platform skill).
       generated/kotlin/BaseTokens.kt: design/base-platform/BaseTokens.kt
-      generated/catalog/models.json: design/base-platform/models.json
       generated/css/base-tokens.css: design/base-platform/base-tokens.css
+      # The shared model store (protocol v1, docs/MODEL_STORE.md): the catalog
+      # as an asset, and the Kotlin store as the :basemodels module.
+      generated/catalog/models.json: app/src/main/assets/base/models.json
+      packages/base_models/android/src/main/kotlin/dev/baseplatform/base_models/SharedModelStore.kt: basemodels/src/main/kotlin/dev/baseplatform/base_models/SharedModelStore.kt
+      packages/base_models/android/src/main/kotlin/dev/baseplatform/base_models/AndroidSiblings.kt: basemodels/src/main/kotlin/dev/baseplatform/base_models/AndroidSiblings.kt
+      packages/base_models/android/src/main/kotlin/dev/baseplatform/base_models/BaseModelsProvider.kt: basemodels/src/main/kotlin/dev/baseplatform/base_models/BaseModelsProvider.kt
+      packages/base_models/android/src/main/AndroidManifest.xml: basemodels/src/main/AndroidManifest.xml
+      packages/base_models/android/src/test/kotlin/dev/baseplatform/base_models/SharedModelStoreTest.kt: basemodels/src/test/kotlin/dev/baseplatform/base_models/SharedModelStoreTest.kt
   - repo: PhoneDots              # Flutter, migrating onto the base packages
     files:
-      generated/catalog/models.json: assets/base/models.json
+      # Models come from base_models (a git dependency), which carries the catalog.
       packages/base_design/lib/src/generated/tokens.g.dart: lib/theme/base_tokens.g.dart
   - repo: spreix-notetaker-apps  # React + Capacitor + Electron
     files:
