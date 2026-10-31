@@ -188,10 +188,17 @@ class WebModelStore extends ModelStore {
 
   Future<void> _drop(String id, Map<String, dynamic> reg) async {
     final cache = await web.window.caches.open(_cacheName).toDart;
-    for (final f in catalog.require(id).files) {
-      await cache.delete(f.url.toJS).toDart;
-    }
     reg.remove(id);
+    // Several models can share a file URL (the speech packs' tokens.txt): keep
+    // any entry another registered model still uses.
+    final stillUsed = {
+      for (final other in reg.keys)
+        if (catalog.byId(other) != null)
+          for (final f in catalog.require(other).files) f.url,
+    };
+    for (final f in catalog.require(id).files) {
+      if (!stillUsed.contains(f.url)) await cache.delete(f.url.toJS).toDart;
+    }
     _writeRegistry(reg);
   }
 }
