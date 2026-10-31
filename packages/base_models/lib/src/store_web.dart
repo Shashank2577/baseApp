@@ -82,6 +82,12 @@ class WebModelStore extends ModelStore {
   Future<void> _ensure(String id) async {
     final spec = catalog.require(id);
     await refresh();
+    if (stateOf(id).isReady && !await _cached(spec)) {
+      // The browser evicted a file but the registry still lists the model: start over.
+      final reg = _readRegistry()..remove(id);
+      _writeRegistry(reg);
+      await refresh();
+    }
     if (!stateOf(id).isReady) {
       if (spec.source == ModelSource.sdk) throw UnsupportedError('${spec.name} needs its native SDK; it cannot run in a browser.');
       if (options.offline?.call() ?? false) throw OfflineException(spec.name);
@@ -133,6 +139,15 @@ class WebModelStore extends ModelStore {
     await refresh();
   }
 
+  /// Whether every file of [spec] is still in Cache Storage (browsers may evict it).
+  Future<bool> _cached(ModelSpec spec) async {
+    final cache = await web.window.caches.open(_cacheName).toDart;
+    for (final f in spec.files) {
+      if (await cache.match(f.url.toJS).toDart == null) return false;
+    }
+    return true;
+  }
+
   Future<Uint8List> _fetch(String id, ModelFile f, void Function(int) progress) {
     final done = Completer<Uint8List>();
     final xhr = web.XMLHttpRequest()
@@ -156,6 +171,8 @@ class WebModelStore extends ModelStore {
       _cancels.remove(id);
       done.completeError(DownloadCancelled());
     }).toJS;
+    // The saved Hugging Face token for gated models, like the native store sends.
+    options.headersFor?.call(f).forEach((name, value) => xhr.setRequestHeader(name, value));
     xhr.send();
     return done.future;
   }

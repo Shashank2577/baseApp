@@ -71,7 +71,7 @@ Rules the code follows (`packages/base_models/lib/src/store_io.dart`):
 
 ## SDK-managed models (Desert Ant)
 
-Some vendors' SDKs download their own weights. For those the catalog entry has `"source": "sdk"`, and the store hands the SDK a folder inside the store (`<store>/desertant.voz/`) through the `SdkInstaller` that `base_ai` provides. On Android, `base_ai_native` passes that folder to the SDK, so these weights are shared too. On iOS the Desert Ant SDK uses its own location, so SDK models are per-app there (a known limit; see the on-device-ai skill).
+Some vendors' SDKs download their own weights. For those the catalog entry has `"source": "sdk"`, and the store hands the SDK a folder inside the store (`<store>/desertant.voz/`) through the `SdkInstaller` that `base_ai` provides. On Android, `base_ai_native` passes that folder to the SDK, so these weights are shared too. On iOS the Desert Ant SDK uses its own location, so SDK models are per-app there, removing one does not free its space, and the privacy page's download total does not include them (known limits; see the on-device-ai skill). Elsewhere, an SDK model's size in the store is added to the download total once installed.
 
 ## Adding a model
 

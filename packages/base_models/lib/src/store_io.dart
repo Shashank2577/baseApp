@@ -238,7 +238,11 @@ class IoModelStore extends ModelStore {
       if (cancel.cancelled) throw DownloadCancelled();
       _set(spec.id, stateOf(spec.id).copyWith(status: ModelStatus.downloading, progress: f));
     });
-    return {'sdkReady': true, 'sdkBytes': _dirSize(Directory(pathOf(spec.id))), 'sdkSource': bundled ? 'bundled' : 'network'};
+    final bytes = _dirSize(Directory(pathOf(spec.id)));
+    // The SDK downloads on its own; count what it wrote to the store as received
+    // (on iOS it writes elsewhere, so this undercounts there; see docs/MODEL_STORE.md).
+    if (!bundled && bytes > 0) options.onNetworkBytes?.call(bytes);
+    return {'sdkReady': true, 'sdkBytes': bytes, 'sdkSource': bundled ? 'bundled' : 'network'};
   }
 
   Future<Map<String, dynamic>> _installFiles(ModelSpec spec, _Cancel cancel) async {

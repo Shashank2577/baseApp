@@ -149,6 +149,7 @@ void main() {
   });
 
   test('a bundled SDK model installs offline and is not counted as network', () async {
+    var sdkBytes = 0;
     final s = await ModelStore.open(
       StoreOptions(
         appId: 'app.a',
@@ -157,12 +158,31 @@ void main() {
         useNativeLocation: false,
         offline: () => true,
         sdkInstaller: (id, key, dir, progress) async => progress(1),
+        onNetworkBytes: (n) => sdkBytes += n,
       ),
     );
     await s.ensure('desertant.tongue');
     expect(s.isReady('desertant.tongue'), isTrue);
     expect(s.sourceOf('desertant.tongue'), 'bundled');
+    expect(sdkBytes, 0);
     await expectLater(s.ensure('desertant.ear'), throwsA(isA<OfflineException>()));
+  });
+
+  test('bytes an SDK writes into the store count as downloaded', () async {
+    var received = 0;
+    final s = await ModelStore.open(
+      StoreOptions(
+        appId: 'app.a',
+        catalog: ModelCatalog(),
+        rootOverride: root.path,
+        useNativeLocation: false,
+        onNetworkBytes: (n) => received += n,
+        sdkInstaller: (id, key, dir, progress) async => File('$dir/weights').writeAsBytesSync(List.filled(1234, 1)),
+      ),
+    );
+    await s.ensure('desertant.ear');
+    expect(received, 1234);
+    expect(s.sourceOf('desertant.ear'), 'network');
   });
 
   test('the shared catalog is valid', () {
