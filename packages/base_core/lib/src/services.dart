@@ -78,6 +78,11 @@ class BaseServices {
   /// models (files other apps still use stay).
   Future<void> wipe({bool releaseModels = true}) async {
     if (releaseModels) {
+      // Stop downloads in progress first, so none finishes after the wipe and
+      // re-creates a claim or a ledger entry.
+      for (final m in models.catalog.all) {
+        if (models.stateOf(m.id).status == ModelStatus.downloading) models.cancel(m.id);
+      }
       for (final id in models.claimedByThisApp) {
         await models.release(id);
       }

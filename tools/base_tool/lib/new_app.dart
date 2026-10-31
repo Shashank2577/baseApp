@@ -88,6 +88,9 @@ String _escapeFor(String ext, String base, String name) {
       return quoted.substring(1, quoted.length - 1);
     case '.xml' || '.plist' || '.html' || '.storyboard' || '.xib' || '.entitlements' || '.manifest':
       return const HtmlEscape(HtmlEscapeMode.attribute).convert(name).replaceAll("'", '&#39;');
+    case '.yaml' || '.yml':
+      // The starter's pubspec description is a double-quoted YAML scalar.
+      return name.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
     case '.cc' || '.cpp' || '.h' || '.rc' || '.kt' || '.kts' || '.swift' || '.cmake' || '.txt':
       return name.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
     default:

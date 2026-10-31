@@ -67,7 +67,9 @@ class WebModelStore extends ModelStore {
     for (final m in catalog.all) {
       if (_installing.contains(m.id)) continue;
       final e = reg[m.id] as Map?;
-      _states[m.id] = e == null
+      // The browser may have evicted the files while the registry kept the entry.
+      final present = e != null && await _cached(m);
+      _states[m.id] = !present
           ? ModelState.absent
           : ModelState(ModelStatus.ready, users: ((e['users'] as Map?) ?? const {}).keys.cast<String>().toSet());
     }
@@ -216,12 +218,17 @@ class WebModelStore extends ModelStore {
 
   @override
   Future<void> release(String id) async {
+    final cache = await web.window.caches.open(_cacheName).toDart;
+    // Read and write the registry with no await in between, so a claim another
+    // tab made meanwhile is seen and kept.
     final reg = _readRegistry();
     final e = reg[id] as Map?;
     if (e == null) return;
     (e['users'] as Map).remove(options.appId);
     if ((e['users'] as Map).isEmpty) {
-      await _drop(id, reg);
+      reg.remove(id);
+      _writeRegistry(reg);
+      await _deleteUnused(cache, id);
     } else {
       _writeRegistry(reg);
     }
@@ -230,23 +237,23 @@ class WebModelStore extends ModelStore {
 
   @override
   Future<void> deleteEverywhere(String id) async {
-    await _drop(id, _readRegistry());
+    final cache = await web.window.caches.open(_cacheName).toDart;
+    _writeRegistry(_readRegistry()..remove(id));
+    await _deleteUnused(cache, id);
     await refresh();
   }
 
-  Future<void> _drop(String id, Map<String, dynamic> reg) async {
-    final cache = await web.window.caches.open(_cacheName).toDart;
-    reg.remove(id);
-    // Several models can share a file URL (the speech packs' tokens.txt): keep
-    // any entry another registered model still uses.
-    final stillUsed = {
-      for (final other in reg.keys)
-        if (catalog.byId(other) != null)
-          for (final f in catalog.require(other).files) f.url,
-    };
+  /// Deletes [id]'s cache entries unless the registry (read fresh, per file)
+  /// lists the model again or another model shares the URL (the speech packs' tokens.txt).
+  Future<void> _deleteUnused(web.Cache cache, String id) async {
     for (final f in catalog.require(id).files) {
+      final reg = _readRegistry();
+      final stillUsed = {
+        for (final other in reg.keys)
+          if (catalog.byId(other) != null)
+            for (final g in catalog.require(other).files) g.url,
+      };
       if (!stillUsed.contains(f.url)) await cache.delete(f.url.toJS).toDart;
     }
-    _writeRegistry(reg);
   }
 }

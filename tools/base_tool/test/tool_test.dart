@@ -5,6 +5,7 @@ import 'package:base_tool/new_app.dart';
 import 'package:base_tool/workspace.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 void main() {
   final repo = Workspace.find(Directory.current.path);
@@ -28,7 +29,7 @@ void main() {
       File(p.join(tmp.path, 'platform.yaml')).writeAsStringSync('vendor:\n  id: com.acme\n');
       File(p.join(tmp.path, 'pubspec.yaml')).writeAsStringSync('name: ws\nworkspace:\n  - packages/base_core\n  - apps/starter\n');
       void put(String rel, String text) => (File(p.join(tmp.path, 'apps/starter', rel))..createSync(recursive: true)).writeAsStringSync(text);
-      put('pubspec.yaml', 'name: starter\nresolution: workspace\n');
+      put('pubspec.yaml', 'name: starter\ndescription: "Starter: the template."\nresolution: workspace\n');
       put('lib/main.dart', "import 'package:starter/app_config.dart';\n");
       put('lib/app_config.dart', "const appConfig = BaseAppConfig(appId: 'com.acme.starter', name: 'Starter', wordmark: 'starter.');\n");
       put('android/app/build.gradle.kts', 'namespace = "com.acme.starter"\napplicationId = "com.acme.starter"\n');
@@ -70,6 +71,8 @@ void main() {
       String read(String rel) => File(p.join(tmp.path, 'apps/whats_new', rel)).readAsStringSync();
       expect(read('lib/app_config.dart'), contains("name: 'What\\'s \"New\"'"));
       expect(read('web/manifest.json'), contains(r'"name": "What' "'" r's \"New\""'));
+      final pubspec = loadYaml(read('pubspec.yaml')) as Map;
+      expect(pubspec['description'], 'What' "'" 's "New": the template.');
     });
   });
 }
