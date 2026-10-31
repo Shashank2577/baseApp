@@ -13,13 +13,15 @@ One codebase, six targets. Builds run in GitHub Actions (`.github/workflows/rele
 
 ## Signing (once per vendor, shared by every app)
 
+Until the secrets below exist, every Android build (debug and release, local and CI) is signed with the public vendor **test key**, `signing/showcase-test.jks`, which `./base sync` also puts into Burrow and PhoneDots. So sideloaded builds of every app update in place and share models from day one; release files built with it are named `-TESTKEY`. How to make your real key without a Play account: `signing/README.md`. `./base check` fails an app that doesn't sign with the vendor key.
+
 | Platform | What | Secrets |
 | --- | --- | --- |
 | Android | one release keystore for **every** app (the shared-model permission is signature-level) | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` |
 | iOS / macOS | Apple team, the App Group `group.com.showcase.shared` registered and enabled for each bundle id, provisioning profiles | `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_TEAM_ID`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` |
 | Windows | code-signing certificate (optional but SmartScreen warns without) | `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD` |
 
-Never commit a key. Never reuse a public test key (PhoneDots did) for anything that leaves your machine.
+Never commit your real key. The test key is public: fine for sideloaded test builds, never for a store release.
 
 ## Commands per target (from `apps/<app>`)
 
@@ -41,7 +43,7 @@ Web: host every app under one origin (`apps.example.com/notes/`, `apps.example.c
 
 1. `check`: `./base gen --check`, `./base check`, analyze, tests.
 2. One job per platform (ubuntu: android, linux, web; macos: ios, macos; windows: windows).
-3. Unsigned or debug artifacts get `-UNSIGNED` in the file name.
+3. Unsigned or debug artifacts get `-UNSIGNED` in the file name; Android artifacts signed with the test key get `-TESTKEY`.
 4. `publish`: `SHA256SUMS.txt` over every artifact, a GitHub release; any `UNSIGNED` artifact makes it a pre-release with a warning.
 
 ## Before the first public release of an app

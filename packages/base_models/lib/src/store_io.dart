@@ -98,7 +98,13 @@ class AndroidSiblings implements SiblingSource {
   @override
   Future<List<SiblingFile>> listAll() async => [
     for (final r in (await _channel.invokeListMethod<Map>('siblingModels', {'action': PlatformConfig.androidDiscoveryAction})) ?? const [])
-      SiblingFile(r['authority'] as String, r['modelId'] as String, r['file'] as String, (r['bytes'] as num).toInt(), r['sha256'] as String?),
+      SiblingFile(
+        r['authority'] as String,
+        r['modelId'] as String,
+        r['file'] as String,
+        (r['bytes'] as num).toInt(),
+        r['sha256'] as String?,
+      ),
   ];
 }
 
@@ -254,10 +260,16 @@ class IoModelStore extends ModelStore {
     });
   }
 
+  void _log(String line) => options.onLog?.call(line);
+
   Future<void> _ensure(ModelSpec spec) async {
+    _log('${spec.id}: needed');
     await refresh();
     // Claimed under the lock; if another app deleted it in between, install it again.
-    if (stateOf(spec.id).isReady && await _claim(spec.id)) return;
+    if (stateOf(spec.id).isReady && await _claim(spec.id)) {
+      _log('${spec.id}: ready, already in the shared store (${location.path})');
+      return;
+    }
     final dir = Directory(pathOf(spec.id))..createSync(recursive: true);
     final lockFile = await File(p.join(dir.path, '.download.lock')).open(mode: FileMode.append);
     // Registered before waiting for the lock, so cancel (and wipe) work while
@@ -276,6 +288,7 @@ class IoModelStore extends ModelStore {
           locked = true;
           break;
         } on FileSystemException {
+          if (!stateOf(spec.id).busyElsewhere) _log('${spec.id}: another app is installing it; waiting');
           _set(spec.id, stateOf(spec.id).copyWith(status: ModelStatus.downloading, busyElsewhere: true));
           await Future<void>.delayed(const Duration(seconds: 2));
           if (cancel.cancelled) continue;
@@ -293,6 +306,7 @@ class IoModelStore extends ModelStore {
       await refresh();
       if (stateOf(spec.id).isReady && await _claim(spec.id)) return;
       _installing.add(spec.id);
+      _log('${spec.id}: installing (${spec.source == ModelSource.sdk ? 'through its SDK' : '${spec.files.length} file(s)'})');
       _set(spec.id, ModelState(ModelStatus.downloading, progress: 0, users: stateOf(spec.id).users));
       try {
         final recorded = spec.source == ModelSource.sdk ? await _installSdk(spec, cancel) : await _installFiles(spec, cancel);
@@ -302,13 +316,16 @@ class IoModelStore extends ModelStore {
         // Marked locally first, so the refresh after registering sees it.
         if (spec.source == ModelSource.sdk && _sdkPerApp) _sdkMarker(spec.id)?.createSync(recursive: true);
         await _register(spec, recorded);
+        _log('${spec.id}: ready (${sourceOf(spec.id) ?? 'installed'})');
       } on DownloadCancelled {
+        _log('${spec.id}: cancelled${cancel.discard ? ', partial download deleted' : ', partial download kept to resume'}');
         _installing.remove(spec.id);
         // Still holding the download lock: no other app is writing here.
         if (cancel.discard) _deletePartials(spec.id);
         _set(spec.id, ModelState.absent);
         rethrow;
       } catch (e) {
+        _log('${spec.id}: FAILED: $e');
         _installing.remove(spec.id);
         _set(spec.id, ModelState(ModelStatus.failed, error: e.toString()));
         rethrow;
@@ -370,7 +387,9 @@ class IoModelStore extends ModelStore {
     final entries = dir.listSync().where((e) => !p.basename(e.path).startsWith('.')).toList();
     if (entries.isEmpty || entries.any((e) => e is! File)) return null;
     return {
-      'sdkFiles': {for (final f in entries.cast<File>()) p.basename(f.path): {'bytes': f.lengthSync()}},
+      'sdkFiles': {
+        for (final f in entries.cast<File>()) p.basename(f.path): {'bytes': f.lengthSync()},
+      },
     };
   }
 
@@ -414,8 +433,12 @@ class IoModelStore extends ModelStore {
       }
 
       final fromSibling = await _copyFromSibling(spec, f, dest, cancel);
+      if (fromSibling) _log('${spec.id}/${f.name}: copied from another app on this device, checksum ok');
       if (!fromSibling) {
-        if (_offline) throw OfflineException(spec.name);
+        if (_offline) {
+          _log('${spec.id}/${f.name}: not downloaded, "never go online" is on');
+          throw OfflineException(spec.name);
+        }
         await _download(f, dest, cancel, progress);
       }
       final size = File(dest).lengthSync();
@@ -429,7 +452,10 @@ class IoModelStore extends ModelStore {
     final s = siblings;
     if (s == null) return false;
     // Siblings that list the file first; then any other (an older provider without the list).
-    final listed = [for (final x in _siblingFiles[spec.id]?[f.name] ?? const <SiblingFile>[]) if (_matches(f, x)) x.authority];
+    final listed = [
+      for (final x in _siblingFiles[spec.id]?[f.name] ?? const <SiblingFile>[])
+        if (_matches(f, x)) x.authority,
+    ];
     final all = await s.authorities();
     for (final authority in {...listed.where(all.contains), ...all}) {
       if (cancel.cancelled) throw DownloadCancelled();
@@ -484,7 +510,9 @@ class IoModelStore extends ModelStore {
       // so ask for it uncompressed (HttpClient asks for gzip by default).
       request.headers.set(HttpHeaders.acceptEncodingHeader, 'identity');
       if (existing > 0) request.headers.set(HttpHeaders.rangeHeader, 'bytes=$existing-');
+      _log('${f.name}: downloading from ${Uri.parse(f.url).host}${existing > 0 ? ', resuming at $existing bytes' : ''}');
       final response = await request.close();
+      _log('${f.name}: HTTP ${response.statusCode}');
       if (response.statusCode == 416) {
         await response.drain<void>(); // The part file is already complete.
       } else {
@@ -518,7 +546,9 @@ class IoModelStore extends ModelStore {
         }
         progress(received);
       }
+      _log('${f.name}: checking SHA-256');
       await _verify(f, part);
+      _log('${f.name}: checksum ok');
       await part.rename(dest);
     } on DownloadCancelled {
       rethrow;
@@ -606,7 +636,12 @@ class IoModelStore extends ModelStore {
   }
 
   @override
-  Future<void> release(String id) => _mutate((models) {
+  Future<void> release(String id) {
+    _log('$id: released by this app');
+    return _release(id);
+  }
+
+  Future<void> _release(String id) => _mutate((models) {
     final marker = _sdkMarker(id);
     if (marker != null && marker.existsSync()) marker.deleteSync();
     final entry = models[id] as Map?;

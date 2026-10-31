@@ -87,7 +87,7 @@ jobs:
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
             export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
           else
-            SUFFIX="-UNSIGNED"
+            SUFFIX="-TESTKEY" # Signed with the public vendor test key (signing/README.md).
           fi
           flutter build apk --release --target-platform android-arm64 --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
           flutter build appbundle --release --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
@@ -168,7 +168,7 @@ jobs:
           sha256sum ./* > SHA256SUMS.txt
           FLAGS=""
           NOTES="$APP $VERSION. Verify downloads with SHA256SUMS.txt."
-          if ls | grep -qE 'UNSIGNED|DEBUG' || [[ "$VERSION" == *-* ]]; then
+          if ls | grep -qE 'UNSIGNED|DEBUG|TESTKEY' || [[ "$VERSION" == *-* ]]; then
             FLAGS="--prerelease"
             NOTES="$NOTES Some artifacts are UNSIGNED: for testing only."
           fi

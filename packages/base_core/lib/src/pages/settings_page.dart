@@ -5,6 +5,7 @@ import '../services.dart';
 import '../shell.dart';
 import 'models_page.dart';
 import 'privacy_page.dart';
+import 'logs_page.dart';
 
 /// Appearance (light or dark, handwriting) and the doors to models and privacy.
 class SettingsPage extends StatelessWidget {
@@ -46,6 +47,7 @@ class SettingsPage extends StatelessWidget {
             const SizedBox(height: 16),
             Door('models', meta: 'on-device AI, shared between apps', onTap: () => pushPage(context, const ModelsPage())),
             Door('privacy', meta: 'what this app did, and switches', onTap: () => pushPage(context, const PrivacyPage())),
+            Door('logs', meta: 'each step, to copy when something fails', onTap: () => pushPage(context, const LogsPage())),
             const SizedBox(height: 16),
             Meta('${s.config.name} · ${s.config.appId} · design tokens $tokensVersion'),
           ],

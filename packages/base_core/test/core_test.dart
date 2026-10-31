@@ -32,6 +32,22 @@ void main() {
     expect(await store.read('${JsonStore.secretPrefix}hfToken'), isNull);
   });
 
+  test('the app log keeps the newest lines, survives a restart and copies with a header', () async {
+    final store = MemoryJsonStore();
+    final log = await AppLog.load(store);
+    for (var i = 0; i < AppLog.limit + 5; i++) {
+      log.add('models', 'step $i');
+    }
+    expect(log.lines, hasLength(AppLog.limit));
+    expect(log.lines.last, endsWith('[models] step ${AppLog.limit + 4}'));
+    await Future<void>.delayed(const Duration(milliseconds: 1100)); // The deferred save.
+    final again = await AppLog.load(store);
+    expect(again.lines, hasLength(AppLog.limit));
+    expect(again.text(header: 'Starter (dev.base.starter)'), startsWith('Starter (dev.base.starter)\n'));
+    await again.clear();
+    expect((await AppLog.load(store)).lines, isEmpty);
+  });
+
   test('the ledger counts today and in total, and says it in words', () async {
     final store = MemoryJsonStore();
     final l = await Ledger.load(store);

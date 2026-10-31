@@ -31,22 +31,35 @@ android {
         manifestPlaceholders["baseModelsDiscoveryAction"] = "com.showcase.action.SHARED_MODELS"
     }
 
-    buildTypes {
-        release {
-            // Every app of the vendor must be signed with the SAME release key: the
-            // shared-model permission is signature-level. CI provides it (see the
-            // release skill); local release builds fall back to the debug key.
-            val keystore = System.getenv("ANDROID_KEYSTORE_PATH")
-            signingConfig = if (keystore != null) {
-                signingConfigs.create("release") {
-                    storeFile = file(keystore)
-                    storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                    keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-                    keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
-                }
-            } else {
-                signingConfigs.getByName("debug")
+    signingConfigs {
+        // The vendor's shared test key (baseApp signing/README.md): every build of
+        // every app is signed alike, so sideloaded builds update in place and share
+        // models. Public: never publish to a store with it.
+        create("vendorTest") {
+            storeFile = rootProject.file("../../../signing/showcase-test.jks")
+            storePassword = "phonedots-test"
+            keyAlias = "phonedots-test"
+            keyPassword = "phonedots-test"
+        }
+        // Your release key, from CI secrets (ANDROID_KEYSTORE_BASE64 and friends).
+        System.getenv("ANDROID_KEYSTORE_PATH")?.let { keystore ->
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
             }
+        }
+    }
+
+    buildTypes {
+        // Every app of the vendor must be signed with the SAME key: the
+        // shared-model permission is signature-level.
+        debug {
+            signingConfig = signingConfigs.getByName("vendorTest")
+        }
+        release {
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("vendorTest")
         }
     }
 }

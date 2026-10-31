@@ -121,5 +121,8 @@ List<Finding> _checkApp(Workspace ws, Directory app, Set<String> members) {
       out.add(Finding(true, '$rel/android/app/build.gradle.kts', 'must contain $want (platform.yaml → sharedModels.$key)'));
     }
   }
+  if (!gradleText.contains('showcase-test.jks')) {
+    out.add(Finding(true, '$rel/android/app/build.gradle.kts', 'must sign debug and release builds with the vendor key (signing/README.md), or this app cannot share models with the others'));
+  }
   return out;
 }

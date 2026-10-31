@@ -380,6 +380,21 @@ Future<void> main(List<String> args) async {
     expect(wrong.existsSync(), isTrue);
   });
 
+  test('every step is logged, so the logs page shows what passed and what failed', () async {
+    final lines = <String>[];
+    final a = await ModelStore.open(
+      StoreOptions(appId: 'app.a', catalog: catalog(), rootOverride: root.path, useNativeLocation: false, onLog: lines.add),
+    );
+    await a.ensure('test.tiny');
+    expect(lines, containsAllInOrder(['test.tiny: needed', contains('downloading from 127.0.0.1'), 'weights.bin: checksum ok', 'test.tiny: ready (network)']));
+    lines.clear();
+    final b = await ModelStore.open(
+      StoreOptions(appId: 'app.b', catalog: catalog(sha: '0' * 64), rootOverride: Directory.systemTemp.createTempSync('other-').path, useNativeLocation: false, onLog: lines.add),
+    );
+    await expectLater(b.ensure('test.tiny'), throwsA(isA<ChecksumMismatch>()));
+    expect(lines.last, startsWith('test.tiny: FAILED: The download of weights.bin was damaged'));
+  });
+
   test('the shared catalog is valid', () {
     final c = ModelCatalog();
     expect(c.all.length, greaterThan(20));

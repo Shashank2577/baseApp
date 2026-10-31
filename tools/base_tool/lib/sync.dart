@@ -26,14 +26,23 @@ SyncResult runSync(Workspace ws, {bool check = false, String? only}) {
     (entry['files'] as YamlMap).forEach((from, to) {
       final src = File(p.join(ws.root, from as String));
       final dst = File(p.join(repoDir, to as String));
-      final content = src.readAsStringSync();
-      if (dst.existsSync() && dst.readAsStringSync() == content) return;
+      // Bytes, not text: the vendor's test signing key is synced too.
+      final content = src.readAsBytesSync();
+      if (dst.existsSync() && _same(dst.readAsBytesSync(), content)) return;
       result.changed.add('$repo/$to');
       if (!check) {
         dst.parent.createSync(recursive: true);
-        dst.writeAsStringSync(content);
+        dst.writeAsBytesSync(content);
       }
     });
   }
   return result;
+}
+
+bool _same(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }

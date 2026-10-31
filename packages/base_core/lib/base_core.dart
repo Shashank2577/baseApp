@@ -15,8 +15,10 @@ export 'package:base_design/base_design.dart';
 export 'package:base_models/base_models.dart';
 
 export 'src/app_config.dart';
+export 'src/app_log.dart';
 export 'src/format.dart';
 export 'src/ledger.dart';
+export 'src/pages/logs_page.dart';
 export 'src/pages/models_page.dart';
 export 'src/pages/onboarding_page.dart';
 export 'src/pages/privacy_page.dart';

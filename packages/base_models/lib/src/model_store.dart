@@ -18,6 +18,7 @@ class StoreOptions {
     this.useNativeLocation = true,
     this.sdkWeightsPerApp,
     this.appLocalDir,
+    this.onLog,
   });
 
   /// This app's bundle / application id. Recorded as a user of each model it claims.
@@ -48,6 +49,10 @@ class StoreOptions {
   /// store marks per-app SDK installs; the shared registry outlives an
   /// uninstall, the SDK's weights do not. Null: the app support folder.
   final String? appLocalDir;
+
+  /// One line per step (claimed, copied from a sibling, downloading, checksum
+  /// ok, failed...), for the app's logs page.
+  final void Function(String line)? onLog;
 }
 
 /// The one on-device model store, shared by every app of the vendor.

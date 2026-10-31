@@ -1,8 +1,11 @@
 import 'package:base_design/base_design.dart';
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_config.dart';
+import 'app_log.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/privacy_page.dart';
 import 'pages/settings_page.dart';
@@ -13,6 +16,20 @@ import 'services.dart';
 void runBaseApp(BaseAppConfig config) {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(BaseApp(config: config));
+}
+
+/// Errors Flutter catches go to the app's log too, so the logs page shows them.
+void _logErrors(AppLog log) {
+  final previous = FlutterError.onError;
+  FlutterError.onError = (details) {
+    log.add('error', details.exceptionAsString());
+    previous?.call(details);
+  };
+  final platform = PlatformDispatcher.instance.onError;
+  PlatformDispatcher.instance.onError = (error, stack) {
+    log.add('error', '$error');
+    return platform?.call(error, stack) ?? false;
+  };
 }
 
 /// Boots the services, applies the theme the user picked, and shows
@@ -30,7 +47,10 @@ class BaseApp extends StatefulWidget {
 }
 
 class _BaseAppState extends State<BaseApp> {
-  late final Future<BaseServices> _boot = widget.services ?? BaseServices.create(widget.config);
+  late final Future<BaseServices> _boot = (widget.services ?? BaseServices.create(widget.config)).then((s) {
+    if (widget.services == null) _logErrors(s.log); // Not in tests: they install their own handlers.
+    return s;
+  });
 
   @override
   Widget build(BuildContext context) => FutureBuilder<BaseServices>(

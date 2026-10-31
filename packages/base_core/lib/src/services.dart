@@ -3,6 +3,7 @@ import 'package:base_models/base_models.dart';
 import 'package:flutter/widgets.dart';
 
 import 'app_config.dart';
+import 'app_log.dart';
 import 'ledger.dart';
 import 'settings.dart';
 import 'storage/json_store.dart';
@@ -10,7 +11,7 @@ import 'storage/json_store.dart';
 /// The platform services one app runs on. Built once at startup by [BaseApp]
 /// and reachable anywhere below it with `BaseScope.of(context)`.
 class BaseServices {
-  BaseServices._(this.config, this.store, this.settings, this.ledger, this.models, this.ai);
+  BaseServices._(this.config, this.store, this.settings, this.ledger, this.models, this.ai, this.log);
 
   final BaseAppConfig config;
   final JsonStore store;
@@ -18,6 +19,9 @@ class BaseServices {
   final Ledger ledger;
   final ModelStore models;
   final AiRuntime ai;
+
+  /// Step-by-step log for the logs page (models, failures, errors).
+  final AppLog log;
 
   static Future<BaseServices> create(
     BaseAppConfig config, {
@@ -29,6 +33,8 @@ class BaseServices {
     final json = store ?? await JsonStore.open(namespace: config.appId);
     final settings = await BaseSettings.load(json);
     final ledger = await Ledger.load(json);
+    final log = await AppLog.load(json);
+    log.add('app', '${config.name} started');
     final runtime = ai ?? AiRuntime.forPlatform(nativeBridges: config.nativeAi);
     final models = await ModelStore.open(
       StoreOptions(
@@ -41,14 +47,16 @@ class BaseServices {
         headersFor: (f) =>
             settings.hfToken.isNotEmpty && isHuggingFaceUrl(f.url) ? {'Authorization': 'Bearer ${settings.hfToken}'} : const {},
         onNetworkBytes: ledger.addBytes,
+        onLog: (line) => log.add('models', line),
       ),
     );
+    log.add('models', 'store: ${models.location.path} (${models.location.description})');
     if (!runtime.isDemo) await runtime.attachStore(models.location.path);
     // Show other apps this one is still installed, and forget apps that have
     // not been opened for half a year (likely uninstalled).
     await models.touchClaims();
     await models.pruneStaleClaims(const Duration(days: 180));
-    return BaseServices._(config, json, settings, ledger, models, runtime);
+    return BaseServices._(config, json, settings, ledger, models, runtime, log);
   }
 
   /// Makes a model ready for this app and writes what happened to the ledger.
@@ -56,7 +64,14 @@ class BaseServices {
     final spec = models.spec(id);
     final wasOnDevice = models.isReady(id);
     final wasMine = models.stateOf(id).users.contains(config.appId);
-    await models.ensure(id);
+    try {
+      await models.ensure(id);
+    } on DownloadCancelled {
+      rethrow;
+    } catch (e) {
+      log.add('models', '$id: could not be made ready: $e');
+      rethrow;
+    }
     final source = models.sourceOf(id);
     if (!wasOnDevice && source == 'bundled') {
       ledger.record('model', '${spec.name} is built into the app');
@@ -93,6 +108,8 @@ class BaseServices {
     await store.deleteFiles();
     await ledger.clear();
     await settings.reset();
+    await log.clear();
+    log.add('app', 'wiped');
   }
 }
 
