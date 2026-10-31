@@ -16,7 +16,7 @@ class _AskPageState extends State<AskPage> {
   String _answer = '';
   bool _busy = false;
 
-  String get _modelId => BaseScope.of(context).config.requiredModels.first;
+  String get _modelId => AppModels.ask;
 
   Future<void> _ask() async {
     final s = BaseScope.of(context);
@@ -55,7 +55,8 @@ class _AskPageState extends State<AskPage> {
     return ListenableBuilder(
       listenable: s.models,
       builder: (context, _) {
-        final ready = s.models.isReady(_modelId);
+        // The demo engine needs no model file; a real engine does.
+        final ready = s.ai.isDemo || s.models.isReady(_modelId);
         return HandPage(
           actions: const [ShellActions()],
           bottom: InkButton('ask', busy: _busy, trailing: Doodle.arrow, onPressed: ready ? _ask : null),

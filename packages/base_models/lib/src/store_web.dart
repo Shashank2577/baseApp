@@ -106,6 +106,8 @@ class WebModelStore extends ModelStore {
             total += f.bytes ?? 0;
             continue;
           }
+          // The cache can change between checks (eviction, another tab): never fetch while offline.
+          if (options.offline?.call() ?? false) throw OfflineException(spec.name);
           final bytes = await _fetch(id, f, (received) {
             if (spec.bytes > 0) _set(id, stateOf(id).copyWith(progress: ((done + received) / spec.bytes).clamp(0, 1)));
           });

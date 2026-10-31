@@ -37,19 +37,16 @@ void main() {
     await tester.pumpWidget(BaseApp(config: appConfig, services: Future.value(s)));
     await tester.pumpAndSettle();
 
-    // Welcome, then the models step (skip the download), then privacy.
+    // Welcome, then privacy (the starter requires no model while it runs the demo engine).
     expect(find.text('starter.'), findsOneWidget);
     await tester.tap(find.text("let's start"));
-    await tester.pumpAndSettle();
-    expect(find.text('Gemma 3 270M'), findsOneWidget);
-    await tester.tap(find.text('later'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('start'));
     await settle(tester);
 
     // Today, with the nav words.
     expect(find.text('today'), findsOneWidget);
-    expect(find.text('get the model'), findsOneWidget);
+    expect(find.text('all quiet.'), findsOneWidget);
 
     await tester.tap(find.text('design'));
     await settle(tester);
@@ -57,7 +54,13 @@ void main() {
 
     await tester.tap(find.text('ask'));
     await settle(tester);
-    expect(find.textContaining('not on this device yet'), findsOneWidget);
+    // Demo engine: asking works without a model file.
+    await tester.enterText(find.byType(TextField).first, 'what is this?');
+    await tester.tap(find.widgetWithText(InkButton, 'ask'));
+    for (var i = 0; i < 5; i++) {
+      await settle(tester);
+    }
+    expect(find.text('answer'), findsOneWidget);
 
     // Settings: switch to dark and to the handwritten voice.
     await tester.tap(find.byTooltip('settings').first);

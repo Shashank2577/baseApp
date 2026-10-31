@@ -152,7 +152,11 @@ class IoModelStore extends ModelStore {
   }
 
   bool _filesPresent(ModelSpec m, Map entry) {
-    if (m.source == ModelSource.sdk) return entry['sdkReady'] == true && Directory(pathOf(m.id)).existsSync();
+    if (m.source == ModelSource.sdk) {
+      if (entry['sdkReady'] != true || !Directory(pathOf(m.id)).existsSync()) return false;
+      // Where the SDK keeps weights per app, only the apps that ran its installer have them.
+      return !_sdkPerApp || m.sdk!.bundled || ((entry['sdkApps'] as List?) ?? const []).contains(options.appId);
+    }
     final files = (entry['files'] as Map?) ?? const {};
     for (final f in m.files) {
       final rec = files[f.name] as Map?;
@@ -228,6 +232,8 @@ class IoModelStore extends ModelStore {
   }
 
   bool get _offline => options.offline?.call() ?? false;
+
+  bool get _sdkPerApp => options.sdkWeightsPerApp ?? (Platform.isIOS && options.useNativeLocation);
 
   Future<Map<String, dynamic>> _installSdk(ModelSpec spec, _Cancel cancel) async {
     final installer = options.sdkInstaller;
@@ -419,6 +425,7 @@ class IoModelStore extends ModelStore {
       'addedAt': now,
       'addedBy': options.appId,
       'users': {...?(previous?['users'] as Map?), options.appId: now},
+      if (spec.source == ModelSource.sdk) 'sdkApps': {...?(previous?['sdkApps'] as List?), options.appId}.toList(),
     };
   });
 

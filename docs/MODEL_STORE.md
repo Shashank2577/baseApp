@@ -20,7 +20,7 @@ The location comes from `platform.yaml` (`vendor`, `sharedModels`), so every app
 | **macOS** (dev, not sandboxed) | `~/Library/Application Support/Showcase Labs/SharedModels` | In place. |
 | **Windows** | `%LOCALAPPDATA%\Showcase Labs\SharedModels` | In place. |
 | **Linux** | `$XDG_DATA_HOME/showcase/sharedmodels` (default `~/.local/share/…`) | In place. |
-| **Android** | each app's `filesDir/shared-models` | **Copy, not download.** See below. |
+| **Android** | each app's `noBackupFilesDir/shared-models` (kept out of Auto Backup) | **Copy, not download.** See below. |
 | **Web** | the browser's Cache Storage, `base-shared-models-v1` | In place, for every app served from the same origin. |
 | fallback | the app's own support folder | None. Shown on the models page as "this app only (the App Group is not set up)". |
 

@@ -83,6 +83,7 @@ class BaseModelsPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     }
 
     companion object {
-        fun storeDir(context: Context): File = File(context.filesDir, "shared-models").apply { mkdirs() }
+        // noBackupFilesDir: gigabytes of re-downloadable weights would blow Auto Backup's 25 MB quota.
+        fun storeDir(context: Context): File = File(context.noBackupFilesDir, "shared-models").apply { mkdirs() }
     }
 }

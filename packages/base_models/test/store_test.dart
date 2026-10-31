@@ -205,6 +205,31 @@ void main() {
     expect(Directory(a.pathOf('test.tiny')).existsSync(), isFalse);
   });
 
+  test('per-app SDK weights: one app installing does not make them ready for another', () async {
+    var installs = 0;
+    Future<ModelStore> sdkStore(String app) => ModelStore.open(
+      StoreOptions(
+        appId: app,
+        catalog: ModelCatalog(),
+        rootOverride: root.path,
+        useNativeLocation: false,
+        sdkWeightsPerApp: true,
+        sdkInstaller: (id, key, dir, progress) async {
+          installs++;
+          Directory(dir).createSync(recursive: true);
+        },
+      ),
+    );
+    final a = await sdkStore('app.a');
+    await a.ensure('desertant.ear');
+    final b = await sdkStore('app.b');
+    expect(b.isReady('desertant.ear'), isFalse);
+    await b.ensure('desertant.ear');
+    expect(installs, 2, reason: 'b ran its own installer');
+    expect(b.isReady('desertant.ear'), isTrue);
+    expect(b.stateOf('desertant.ear').users, {'app.a', 'app.b'});
+  });
+
   test('the shared catalog is valid', () {
     final c = ModelCatalog();
     expect(c.all.length, greaterThan(20));

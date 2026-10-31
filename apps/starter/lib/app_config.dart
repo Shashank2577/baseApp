@@ -17,12 +17,18 @@ const appConfig = BaseAppConfig(
     BaseTab('ask', AskPage.new),
     BaseTab('design', DesignPage.new),
   ],
-  // The smallest Gemma: enough to try the ask tab. Any other app on this device
-  // that already downloaded it shares its copy, so onboarding skips it.
-  requiredModels: ['gemma-3-270m'],
-  optionalModels: ['gemma-4-e2b', 'embeddinggemma-2-text-270m', 'desertant.redact'],
+  // Nothing is required while this app runs the demo engine. With real engines
+  // (nativeAi: true) move 'gemma-3-270m' here so onboarding fetches it; any
+  // other app that already downloaded it shares its copy.
+  requiredModels: [],
+  optionalModels: [AppModels.ask, 'gemma-4-e2b', 'embeddinggemma-2-text-270m', 'desertant.redact'],
   ledgerEntries: [AppLedger.questions],
 );
+
+abstract final class AppModels {
+  /// The smallest Gemma: what the ask tab runs on a real engine.
+  static const ask = 'gemma-3-270m';
+}
 
 abstract final class AppLedger {
   static const questions = LedgerEntry('starter.questions', 'answered 1 question', 'answered %d questions');
