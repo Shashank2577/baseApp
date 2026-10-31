@@ -85,11 +85,11 @@ Verified in this repo (Linux host):
 - `flutter analyze`: clean, every package and app.
 - Tests: design system (wobble bit-identical to Burrow's Kotlin, doodles, voices, the component catalogue at 360 wide in light and dark, nav on narrow screens), model store (two apps sharing one store with no second download, release semantics, "never go online", checksum failure, resume from a partial file), core (settings, ledger, wipe), the starter app end to end (onboarding → tabs → settings → models at 390 wide), and the tool (generator, new-app renaming).
 - `./base check`: 0 errors, 0 warnings; every one of the 44 catalog models has verified checksums and sizes.
-- Builds of the starter: **web** and **Linux** release builds succeed.
+- Builds of the starter: **web** and **Linux** release builds and an **Android** debug APK succeed; the merged Android manifest has the shared-model provider behind the signature permission.
 
 Not verified here:
 
-- **Android, iOS, macOS, Windows builds.** macOS/iOS/Windows need those hosts (CI has the jobs: `.github/workflows/ci.yml`, `release.yml`, never run yet). See the Android note in the final report of this change.
-- **Real inference.** `base_ai_native` is PhoneDots' bridge code with the store wired in; it has not been built into an app or run on a phone here.
+- **iOS, macOS and Windows builds.** They need those hosts. CI has the jobs (`.github/workflows/ci.yml`, `release.yml`), but they have not run yet.
+- **Real inference.** `base_ai_native` is PhoneDots' bridge code with the store wired in. It has not been built into an app or run on a phone here.
 - **Two real apps sharing a model on a real device** (App Group on iOS/macOS, sibling copy on Android). The logic is tested with two stores on one folder; the native parts are untested on devices.
 - Signing, notarisation, store submission.
