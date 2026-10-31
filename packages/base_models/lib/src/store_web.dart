@@ -56,6 +56,9 @@ class WebModelStore extends ModelStore {
   }
 
   @override
+  String? sourceOf(String id) => _readRegistry().containsKey(id) ? 'network' : null;
+
+  @override
   int get bytesOnDisk => _readRegistry().values.fold<int>(0, (s, e) => s + (((e as Map)['bytes'] as int?) ?? 0));
 
   @override

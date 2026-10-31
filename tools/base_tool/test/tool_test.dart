@@ -58,9 +58,18 @@ void main() {
       expect(File(p.join(tmp.path, 'pubspec.yaml')).readAsStringSync(), contains('  - apps/field_notes\n'));
     });
 
-    test('refuses bad names and existing apps', () {
+    test('refuses bad names, existing apps and colliding application ids', () {
       expect(() => newApp(ws, 'Bad-Name', displayName: 'x'), throwsArgumentError);
       expect(() => newApp(ws, 'starter', displayName: 'x'), throwsStateError);
+      newApp(ws, 'field_notes', displayName: 'x');
+      expect(() => newApp(ws, 'fieldnotes', displayName: 'x'), throwsStateError);
+    });
+
+    test('a name with quotes is escaped for each file format', () {
+      newApp(ws, 'whats_new', displayName: "What's \"New\"");
+      String read(String rel) => File(p.join(tmp.path, 'apps/whats_new', rel)).readAsStringSync();
+      expect(read('lib/app_config.dart'), contains("name: 'What\\'s \"New\"'"));
+      expect(read('web/manifest.json'), contains(r'"name": "What' "'" r's \"New\""'));
     });
   });
 }

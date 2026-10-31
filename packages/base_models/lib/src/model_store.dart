@@ -79,6 +79,10 @@ abstract class ModelStore extends ChangeNotifier {
   /// Removes the model for every app on the device.
   Future<void> deleteEverywhere(String id);
 
+  /// How the model's files reached this device: 'network', 'sibling' (copied
+  /// from another app, Android) or null when unknown.
+  String? sourceOf(String id);
+
   /// Bytes of every model in the shared store, all apps together.
   int get bytesOnDisk;
 

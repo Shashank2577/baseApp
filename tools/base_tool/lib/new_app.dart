@@ -1,5 +1,6 @@
 // Copies apps/starter into apps/<slug> and renames every identifier on every
 // platform (Android, iOS, macOS, Windows, Linux, web).
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -33,6 +34,12 @@ NewAppResult newApp(Workspace ws, String slug, {required String displayName, Str
 
   final templateId = '${ws.vendorId}.$template';
   final appId = '${ws.vendorId}.${slug.replaceAll('_', '')}';
+  // Underscores are dropped from the id, so field_notes and fieldnotes would collide.
+  for (final existing in ws.apps) {
+    if (p.basename(existing.path).replaceAll('_', '') == slug.replaceAll('_', '')) {
+      throw StateError('apps/${p.basename(existing.path)} already uses the application id $appId');
+    }
+  }
   final templateName = _title(template);
   final word = RegExp('\\b$template\\b');
   final titleWord = RegExp('\\b$templateName\\b');
@@ -51,7 +58,7 @@ NewAppResult newApp(Workspace ws, String slug, {required String displayName, Str
           .replaceAll(templateId, appId)
           .replaceAll('package:$template/', 'package:$slug/')
           .replaceAll(word, slug)
-          .replaceAll(titleWord, displayName);
+          .replaceAll(titleWord, _escapeFor(p.extension(rel), p.basename(rel), displayName));
       out.writeAsStringSync(text);
     } else {
       entity.copySync(out.path);
@@ -69,6 +76,23 @@ void _addToWorkspace(Workspace ws, String member) {
   final last = lines.lastIndexWhere((l) => l.trimLeft().startsWith('- apps/') || l.trimLeft().startsWith('- tools/'));
   lines.insert(last + 1, '  - $member');
   f.writeAsStringSync('${lines.join('\n')}\n');
+}
+
+/// [name] made safe for the file format it is written into.
+String _escapeFor(String ext, String base, String name) {
+  switch (ext) {
+    case '.dart':
+      return name.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll(r'$', r'\$');
+    case '.json':
+      final quoted = jsonEncode(name);
+      return quoted.substring(1, quoted.length - 1);
+    case '.xml' || '.plist' || '.html' || '.storyboard' || '.xib' || '.entitlements' || '.manifest':
+      return const HtmlEscape(HtmlEscapeMode.attribute).convert(name).replaceAll("'", '&#39;');
+    case '.cc' || '.cpp' || '.h' || '.rc' || '.kt' || '.kts' || '.swift' || '.cmake' || '.txt':
+      return name.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+    default:
+      return base == 'CMakeLists.txt' ? name.replaceAll('"', r'\"') : name;
+  }
 }
 
 String _title(String slug) => slug.split('_').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');

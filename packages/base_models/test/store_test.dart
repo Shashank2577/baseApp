@@ -79,6 +79,7 @@ void main() {
     expect(notes.isReady('test.tiny'), isTrue);
     expect(requests, 1);
     expect(bytes, payload.length);
+    expect(notes.sourceOf('test.tiny'), 'network');
     expect(File(notes.pathOf('test.tiny', 'weights.bin')).lengthSync(), payload.length);
 
     final talks = await open('com.showcase.talks');

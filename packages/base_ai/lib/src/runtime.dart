@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'demo_engines.dart';
 import 'engines.dart';
@@ -38,7 +39,11 @@ class AiRuntime {
   /// SDK-managed weights (Desert Ant) live there too. Call once at startup.
   Future<void> attachStore(String root) async {
     if (isDemo) return;
-    await Channels.specialist.invokeMethod<void>('setStoreRoot', {'root': root});
+    try {
+      await Channels.specialist.invokeMethod<void>('setStoreRoot', {'root': root});
+    } on MissingPluginException {
+      // A bridge without store support keeps its own folder; never block startup on it.
+    }
   }
 
   /// For the shared model store: lets an SDK-managed model (Desert Ant)

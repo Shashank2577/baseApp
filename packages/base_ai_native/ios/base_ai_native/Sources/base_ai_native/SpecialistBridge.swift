@@ -100,6 +100,10 @@ final class SpecialistBridge: NSObject, FlutterStreamHandler {
     let args = call.arguments as? [String: Any] ?? [:]
     let key = (args["modelId"] as? String ?? "").replacingOccurrences(of: "desertant.", with: "")
     switch call.method {
+    case "setStoreRoot":
+      // The iOS Desert Ant SDK chooses its own folder, so there is nothing to
+      // move; answer so Dart's startup call succeeds.
+      result(nil)
     case "availability":
       var map: [String: String] = [:]
       for k in ["voz", "who", "ear", "clear", "uhm", "redact", "tongue", "emo", "gist", "eye", "moderator", "align", "title", "clips", "shapes"] {

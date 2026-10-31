@@ -113,6 +113,13 @@ class IoModelStore extends ModelStore {
   String pathOf(String id, [String? file]) => file == null ? p.join(root.path, id) : p.join(root.path, id, file);
 
   @override
+  String? sourceOf(String id) {
+    final files = ((_models[id] as Map?)?['files'] as Map?)?.values.cast<Map>() ?? const <Map>[];
+    if (files.isEmpty) return (_models[id] as Map?)?['sdkReady'] == true ? 'network' : null;
+    return files.any((f) => f['source'] == 'network') ? 'network' : 'sibling';
+  }
+
+  @override
   int get bytesOnDisk {
     var total = 0;
     for (final entry in _models.values) {

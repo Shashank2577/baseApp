@@ -9,6 +9,8 @@
         android:name="${baseModelsPermission}"
         android:protectionLevel="signature" />
     <uses-permission android:name="${baseModelsPermission}" />
+    <!-- Model downloads. Flutter only declares INTERNET in debug/profile manifests. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <queries>
         <intent>

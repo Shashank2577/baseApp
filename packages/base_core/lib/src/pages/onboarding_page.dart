@@ -65,7 +65,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
             allReady ? 'next' : 'download ${formatBytes(bytes)}',
             busy: _busy,
             trailing: Doodle.arrow,
-            onPressed: allReady ? () => setState(() => _step = 2) : () => _download(s, missing),
+            onPressed: () async {
+              await _download(s, needs);
+              if (mounted && needs.every(s.models.isReady)) setState(() => _step = 2);
+            },
           ),
           if (!allReady) Center(child: HandLink('later', onPressed: () => setState(() => _step = 2))),
         ],
@@ -84,6 +87,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
+  /// Makes every model this app needs ready and claims it, including ones
+  /// another app already downloaded, so they are not deleted under this app.
   Future<void> _download(BaseServices s, List<String> ids) async {
     setState(() {
       _busy = true;

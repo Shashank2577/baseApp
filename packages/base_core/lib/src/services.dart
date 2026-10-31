@@ -52,9 +52,9 @@ class BaseServices {
     final spec = models.spec(id);
     final wasOnDevice = models.isReady(id);
     final wasMine = models.stateOf(id).users.contains(config.appId);
-    if (!wasOnDevice) ledger.record('model', 'downloading ${spec.name}', network: true);
     await models.ensure(id);
-    if (wasOnDevice) {
+    if (wasOnDevice || models.sourceOf(id) == 'sibling') {
+      // Shared in place, or copied from a sibling app on this device: no network.
       if (!wasMine) {
         ledger
           ..add(LedgerEntry.modelsShared)

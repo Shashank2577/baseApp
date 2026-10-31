@@ -87,9 +87,10 @@ class SpecialistBridge(private val context: Context, messenger: BinaryMessenger)
         result.success(null)
       }
       "availability" -> result.success(
-        listOf("voz", "who", "ear", "clear", "redact", "emo", "gist", "eye", "moderator", "tongue", "shapes")
+        listOf("voz", "who", "ear", "clear", "redact", "emo", "gist", "eye", "moderator", "tongue")
           .associate { "desertant.$it" to "native" } +
-          listOf("uhm", "align", "title", "clips").associate { "desertant.$it" to "unsupported" }
+          // Shapes has no case in model() yet.
+          listOf("uhm", "align", "title", "clips", "shapes").associate { "desertant.$it" to "unsupported" }
       )
       "isDownloaded" -> scope.launch {
         val ok = try {
