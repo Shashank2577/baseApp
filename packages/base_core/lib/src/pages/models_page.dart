@@ -83,6 +83,9 @@ class _ModelRow extends StatelessWidget {
         action = usedBy
             ? HandLink('remove', onPressed: () => _remove(context))
             : PillButton('use', onPressed: () => _run(context, () => s.ensureModel(spec.id)));
+      case ModelStatus.absent || ModelStatus.failed when spec.source == ModelSource.sdk && s.ai.isDemo:
+        // SDK models install through the native engine; the demo build has none.
+        action = const SizedBox(width: 96, child: Meta('needs the on-device engine', textAlign: TextAlign.end));
       case ModelStatus.absent:
       case ModelStatus.failed:
         action = PillButton(

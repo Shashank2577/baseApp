@@ -174,8 +174,12 @@ final class LlmBridge: NSObject, FlutterStreamHandler {
     do {
       let modelId = a["modelId"] as? String ?? ""
       let sessionId = a["sessionId"] as? String ?? ""
-      let history = a["history"] as? [[String: Any]] ?? []
-      let system = a["systemPrompt"] as? String ?? ""
+      let fullHistory = a["history"] as? [[String: Any]] ?? []
+      // System turns would replay as user turns below; fold them into the
+      // system prompt instead, so instructions keep their role on iOS too.
+      let systemTurns = fullHistory.filter { ($0["role"] as? String) == "system" }.compactMap { $0["text"] as? String }
+      let history = fullHistory.filter { ($0["role"] as? String) != "system" }
+      let system = ([a["systemPrompt"] as? String ?? ""] + systemTurns).filter { !$0.isEmpty }.joined(separator: "\n\n")
       let sampler = a["sampler"] as? [String: Any] ?? [:]
       guard let engine = lock.withLock({ engines[modelId] }), let last = history.last else {
         throw NSError(domain: "llm", code: 2, userInfo: [NSLocalizedDescriptionKey: "Model \(modelId) is not loaded"])
