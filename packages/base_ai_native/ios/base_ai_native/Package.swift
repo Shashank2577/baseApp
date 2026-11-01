@@ -15,7 +15,9 @@ let package = Package(
         .package(name: "FlutterFramework", path: "../FlutterFramework"),
         // The engines. They must be dependencies of this target (not only of the
         // Runner) for the bridges' `canImport` checks to see them.
-        .package(url: "https://github.com/google-ai-edge/LiteRT-LM.git", from: "0.19.0"),
+        // Exactly 0.18.1: the 0.19.0 tag's Swift sources call a newer C API than the
+        // binary it downloads, so it does not compile (found building PhoneDots for iOS).
+        .package(url: "https://github.com/google-ai-edge/LiteRT-LM.git", exact: "0.18.1"),
         .package(url: "https://github.com/Desert-Ant-Labs/desert-ant-core.git", from: "4.2.1"),
     ],
     targets: [
