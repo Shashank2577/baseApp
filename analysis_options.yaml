@@ -1,0 +1,15 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/build/**"
+    - "**/.dart_tool/**"
+  language:
+    strict-casts: false
+
+linter:
+  rules:
+    - prefer_single_quotes
+    - require_trailing_commas: false
+    - always_declare_return_types
+    - unawaited_futures

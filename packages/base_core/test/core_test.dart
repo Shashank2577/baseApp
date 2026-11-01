@@ -1,0 +1,94 @@
+import 'dart:io';
+
+import 'package:base_core/base_core.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('settings persist through the store', () async {
+    final store = MemoryJsonStore();
+    final s = await BaseSettings.load(store);
+    await s.update((x) {
+      x
+        ..themeMode = ThemeMode.dark
+        ..voiceId = 'loose'
+        ..neverOnline = true;
+    });
+    final again = await BaseSettings.load(store);
+    expect(again.themeMode, ThemeMode.dark);
+    expect(again.voice.id, 'loose');
+    expect(again.neverOnline, isTrue);
+  });
+
+  test('the Hugging Face token is kept as a secret, apart from the backed-up settings', () async {
+    final store = MemoryJsonStore();
+    // Saved by an older build, inside the settings document.
+    await store.write('base.settings', {'hfToken': 'hf_old', 'onboarded': true});
+    final s = await BaseSettings.load(store);
+    expect(s.hfToken, 'hf_old');
+    expect((await store.read('base.settings') as Map).containsKey('hfToken'), isFalse);
+    expect(await store.read('${JsonStore.secretPrefix}hfToken'), 'hf_old');
+    await s.update((x) => x.hfToken = '');
+    expect(await store.read('${JsonStore.secretPrefix}hfToken'), isNull);
+  });
+
+  test('the app log keeps the newest lines, survives a restart and copies with a header', () async {
+    final store = MemoryJsonStore();
+    final log = await AppLog.load(store);
+    for (var i = 0; i < AppLog.limit + 5; i++) {
+      log.add('models', 'step $i');
+    }
+    expect(log.lines, hasLength(AppLog.limit));
+    expect(log.lines.last, endsWith('[models] step ${AppLog.limit + 4}'));
+    await Future<void>.delayed(const Duration(milliseconds: 1100)); // The deferred save.
+    final again = await AppLog.load(store);
+    expect(again.lines, hasLength(AppLog.limit));
+    expect(again.text(header: 'Starter (dev.base.starter)'), startsWith('Starter (dev.base.starter)\n'));
+    await again.clear();
+    expect((await AppLog.load(store)).lines, isEmpty);
+  });
+
+  test('the ledger counts today and in total, and says it in words', () async {
+    final store = MemoryJsonStore();
+    final l = await Ledger.load(store);
+    const photos = LedgerEntry('photos', 'checked 1 photo', 'checked %d photos');
+    l
+      ..add(photos, 311)
+      ..add(photos)
+      ..addBytes(2048);
+    expect(l.today(photos), 312);
+    expect(l.summary([photos]), ['checked 312 photos']);
+    expect(l.summary([LedgerEntry.modelsDownloaded]), isEmpty);
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
+    final again = await Ledger.load(store);
+    expect(again.total(photos), 312);
+    expect(again.bytesDownloaded, 2048);
+  });
+
+  test('wipe forgets settings and the ledger', () async {
+    final models = Directory.systemTemp.createTempSync('core-models-');
+    addTearDown(() => models.deleteSync(recursive: true));
+    const config = BaseAppConfig(appId: 'com.test.app', name: 'Test', tagline: 't', tabs: []);
+    final s = await BaseServices.create(config, store: MemoryJsonStore(), modelsRoot: models.path, useNativeLocation: false, ai: AiRuntime.demo());
+    await s.settings.update((x) => x.onboarded = true);
+    s.ledger.record('x', 'did a thing');
+    await s.wipe();
+    expect(s.settings.onboarded, isFalse);
+    expect(s.ledger.events, isEmpty);
+    expect(s.models.location.path, models.path);
+  });
+
+  test('the Hugging Face token only goes to huggingface.co itself', () {
+    expect(isHuggingFaceUrl('https://huggingface.co/org/repo/resolve/main/m.bin'), isTrue);
+    expect(isHuggingFaceUrl('https://huggingface.co.attacker.example/m.bin'), isFalse);
+    expect(isHuggingFaceUrl('https://evil.example/huggingface.co/m.bin'), isFalse);
+    expect(isHuggingFaceUrl('http://huggingface.co/m.bin'), isFalse);
+  });
+
+  test('formatBytes and greeting', () {
+    expect(formatBytes(2588147712), '2.6 GB');
+    expect(formatBytes(164626432), '165 MB');
+    expect(greeting(DateTime(2026, 1, 1, 3)), 'hello, night owl');
+    expect(greeting(DateTime(2026, 1, 1, 9)), 'good morning');
+  });
+}
