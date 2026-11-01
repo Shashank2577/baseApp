@@ -26,6 +26,9 @@ class _AskPageState extends State<AskPage> {
       _busy = true;
       _answer = '';
     });
+    // Loading and answering can take a while: keep the app awake meanwhile
+    // (an ongoing notification on Android; the screen stays on on iOS).
+    if (!s.ai.isDemo) await KeepAwake.begin('answer', 'writing an answer', ai: true);
     try {
       final spec = s.models.spec(_modelId);
       if (!s.ai.llm.isLoaded(_modelId)) {
@@ -40,6 +43,7 @@ class _AskPageState extends State<AskPage> {
         if (e is DoneEvent) s.ledger.add(AppLedger.questions);
       }
     } finally {
+      if (!s.ai.isDemo) await KeepAwake.end('answer');
       if (mounted) setState(() => _busy = false);
     }
   }

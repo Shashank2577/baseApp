@@ -37,6 +37,7 @@ downstream:
       packages/base_models/android/src/main/kotlin/dev/baseplatform/base_models/SharedModelStore.kt: basemodels/src/main/kotlin/dev/baseplatform/base_models/SharedModelStore.kt
       packages/base_models/android/src/main/kotlin/dev/baseplatform/base_models/AndroidSiblings.kt: basemodels/src/main/kotlin/dev/baseplatform/base_models/AndroidSiblings.kt
       packages/base_models/android/src/main/kotlin/dev/baseplatform/base_models/BaseModelsProvider.kt: basemodels/src/main/kotlin/dev/baseplatform/base_models/BaseModelsProvider.kt
+      packages/base_models/android/src/main/kotlin/dev/baseplatform/base_models/KeepAwake.kt: basemodels/src/main/kotlin/dev/baseplatform/base_models/KeepAwake.kt
       packages/base_models/android/src/main/AndroidManifest.xml: basemodels/src/main/AndroidManifest.xml
       packages/base_models/android/src/test/kotlin/dev/baseplatform/base_models/SharedModelStoreTest.kt: basemodels/src/test/kotlin/dev/baseplatform/base_models/SharedModelStoreTest.kt
   - repo: PhoneDots              # Flutter, migrating onto the base packages

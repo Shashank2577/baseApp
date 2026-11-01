@@ -103,6 +103,10 @@ store.release("speech.indic.hi")
 
 Burrow is the reference: its Desert Ant models are created with `<store>/desertant.<key>` as their folder, and its speech packs are catalog models. `./base sync` copies the module's sources and the catalog asset; only `basemodels/build.gradle.kts` belongs to the app.
 
+## Keeping the app awake
+
+A model install or an AI answer can take minutes. `KeepAwake` (Dart: `KeepAwake.during(key, text, work, ai: true)`; Kotlin: `KeepAwake.during(context, key, text, kind) { update -> }`) keeps the app working meanwhile: on Android an ongoing notification from a foreground service ("PhoneDots · getting Gemma 4 E2B · 34%") plus a wake lock; on iOS the screen is kept from locking while the app is open and iOS's short background extension (about 30 seconds) is requested, because iOS doesn't let apps run on in the background; on macOS no sleep and no App Nap. The store does it for every install on its own; apps wrap their AI answers.
+
 ## Adding a model
 
 Use the `shared-models` skill. In short: add an entry to `catalog/models.json`, run `./base checksums` (fills SHA-256 and sizes from Hugging Face), `./base gen`, `./base check`, and list the id in the app's `requiredModels` or `optionalModels`. Never download a model from app code: `./base check` fails on it.
