@@ -29,6 +29,15 @@ android {
         // and be identical in every app of the vendor, or they stop sharing models.
         manifestPlaceholders["baseModelsPermission"] = "com.showcase.permission.SHARED_MODELS"
         manifestPlaceholders["baseModelsDiscoveryAction"] = "com.showcase.action.SHARED_MODELS"
+        // arm64 only: every current phone is arm64, and each Desert Ant model brings
+        // ~56 MB of native code per ABI.
+        ndk { abiFilters += listOf("arm64-v8a") }
+    }
+
+    packaging {
+        // Compressed in the APK (Android extracts them once at install): the
+        // native libraries of the on-device models are most of the app.
+        jniLibs.useLegacyPackaging = true
     }
 
     signingConfigs {

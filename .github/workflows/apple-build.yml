@@ -86,6 +86,10 @@ jobs:
         shell: bash
         run: |
           NAME="${VERSION%%-*}"
+          # Unsigned (ad-hoc) Mac apps can't hold an App Group: macOS refuses to
+          # launch an ad-hoc app with that entitlement. Drop it for this build; the
+          # model store then uses the app's own folder (models aren't shared).
+          /usr/libexec/PlistBuddy -c "Delete :com.apple.security.application-groups" macos/Runner/Release.entitlements || true
           flutter build macos --release --build-name "$NAME" --build-number "$GITHUB_RUN_NUMBER"
           APP_DIR=$(ls -d build/macos/Build/Products/Release/*.app | head -1)
           echo "Frameworks in the app:" && ls "$APP_DIR/Contents/Frameworks" || true
