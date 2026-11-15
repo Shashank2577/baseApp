@@ -22,14 +22,6 @@ class SettingsPage extends StatelessWidget {
           onBack: () => Navigator.pop(context),
           children: [
             PageIntro(title: 'settings', purpose: 'How ${s.config.name} looks and reads. Saved on this device.', doodle: Doodle.gear),
-            if (settings.typeNotice) ...[
-              DoneNote(
-                'Reading text is now a plain font. Change it under handwriting.',
-                action: 'ok',
-                onAction: () => settings.update((x) => x.typeNotice = false),
-              ),
-              const SizedBox(height: SpaceTokens.s),
-            ],
             const SectionHead('light or dark', first: true),
             Wrap(
               spacing: SpaceTokens.s,
@@ -48,8 +40,29 @@ class SettingsPage extends StatelessWidget {
                   ),
               ],
             ),
-            const SectionHead('handwriting', note: 'The face you read in. Headlines and buttons stay hand-lettered.'),
-            for (final v in Voice.all) _VoiceRow(voice: v, selected: settings.voiceId == v.id),
+            SectionHead(
+              'writing',
+              note: settings.voice.isHand
+                  ? 'Everything is handwritten: what you read, names and tags too.'
+                  : 'What you read is plain type. Headings and buttons stay hand-lettered.',
+            ),
+            Wrap(
+              spacing: SpaceTokens.s,
+              runSpacing: SpaceTokens.s,
+              children: [
+                for (final (hand, label) in [(true, 'handwritten'), (false, 'formal')])
+                  ChoicePill(
+                    label,
+                    selected: settings.voice.isHand == hand,
+                    // Keeps the voice when the style is already this one.
+                    onPressed: () => settings.voice.isHand == hand
+                        ? null
+                        : settings.update((x) => x.voiceId = Voice.ofStyle(hand: hand).first.id),
+                  ),
+              ],
+            ),
+            const SizedBox(height: SpaceTokens.s),
+            for (final v in Voice.ofStyle(hand: settings.voice.isHand)) _VoiceRow(voice: v, selected: settings.voiceId == v.id),
             const SectionHead('more'),
             Door('models', meta: 'On-device AI, shared between apps', onTap: () => pushPage(context, const ModelsPage())),
             Door('privacy', meta: 'What this app did, and switches', onTap: () => pushPage(context, const PrivacyPage())),
@@ -78,11 +91,7 @@ class _VoiceRow extends StatelessWidget {
       inMutuallyExclusiveGroup: true,
       child: InkWell(
         borderRadius: BorderRadius.circular(RadiusTokens.row + 2),
-        onTap: () => s.settings.update((x) {
-          x
-            ..voiceId = voice.id
-            ..typeNotice = false;
-        }),
+        onTap: () => s.settings.update((x) => x.voiceId = voice.id),
         child: Container(
           decoration: BoxDecoration(color: selected ? c.smudge : null, borderRadius: BorderRadius.circular(RadiusTokens.row + 2)),
           constraints: const BoxConstraints(minHeight: SizeTokens.row),

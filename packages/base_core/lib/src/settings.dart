@@ -10,9 +10,10 @@ class BaseSettings extends ChangeNotifier {
 
   static const _key = 'base.settings';
 
-  /// Tokens 2.0.0 made reading text a plain font. Settings saved before that
-  /// carry no `typeVersion` and have the old default voice stored.
-  static const typeVersion = 2;
+  /// Version of the stored voice. 2 was tokens 2.0.0, which moved every
+  /// install to the plain "friendly" voice; 3 (tokens 2.1.0) gives those
+  /// installs their handwriting back once. Older settings carry no version.
+  static const typeVersion = 3;
   static const _tokenKey = '${JsonStore.secretPrefix}hfToken';
 
   final JsonStore _store;
@@ -20,9 +21,6 @@ class BaseSettings extends ChangeNotifier {
   ThemeMode themeMode = ThemeMode.system;
   String voiceId = defaultVoiceId;
   bool onboarded = false;
-
-  /// Show, once, that reading text changed to a plain font (set by the 2.0 migration).
-  bool typeNotice = false;
 
   /// "Never go online": the model store refuses every download.
   bool neverOnline = false;
@@ -39,7 +37,6 @@ class BaseSettings extends ChangeNotifier {
     s
       ..themeMode = ThemeMode.values.asNameMap()[raw['themeMode']] ?? ThemeMode.system
       ..voiceId = _voice(raw)
-      ..typeNotice = raw['typeNotice'] as bool? ?? false
       ..onboarded = raw['onboarded'] as bool? ?? false
       ..neverOnline = raw['neverOnline'] as bool? ?? false
       // Kept apart from the other settings so backups don't carry it; older
@@ -47,18 +44,17 @@ class BaseSettings extends ChangeNotifier {
       ..hfToken = (await store.read(_tokenKey) as String?) ?? raw['hfToken'] as String? ?? ''
       ..extra = (raw['extra'] as Map?)?.cast<String, Object?>() ?? {};
     final migrate = raw.isNotEmpty && raw['typeVersion'] != typeVersion;
-    // Every install before 2.0 has the old default (neat hand) stored, so
-    // changing the default alone would fix nothing: reset the voice once.
-    if (migrate) s.typeNotice = true;
     // Move a token saved by an older build out of the backed-up document.
     if (migrate || raw.containsKey('hfToken')) await s.update((_) {});
     return s;
   }
 
   static String _voice(Map<String, Object?> raw) {
-    if (raw['typeVersion'] != typeVersion) return defaultVoiceId;
     final id = raw['voice'] as String? ?? defaultVoiceId;
-    return Voice.retired[id] ?? id;
+    // 2.0.0 stored "friendly" for everyone, whatever they had picked. A
+    // migration cannot be told from a choice, so those go back to the default.
+    if (raw['typeVersion'] == 2 && id == 'friendly') return defaultVoiceId;
+    return Voice.byId(id).id;
   }
 
   /// Applies [change], tells listeners, and saves.
@@ -69,7 +65,6 @@ class BaseSettings extends ChangeNotifier {
       'themeMode': themeMode.name,
       'voice': voiceId,
       'typeVersion': typeVersion,
-      if (typeNotice) 'typeNotice': true,
       'onboarded': onboarded,
       'neverOnline': neverOnline,
       'extra': extra,
@@ -85,7 +80,6 @@ class BaseSettings extends ChangeNotifier {
     s
       ..themeMode = ThemeMode.system
       ..voiceId = defaultVoiceId
-      ..typeNotice = false
       ..onboarded = false
       ..neverOnline = false
       ..hfToken = ''

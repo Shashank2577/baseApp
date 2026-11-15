@@ -30,7 +30,7 @@ Checklist for every screen:
 4. No cards, shadows or gradients; separate with space and `HandDivider`.
 5. Rows that lead to a place in the app are `Door(onTap: …)`; content rows are `ItemRow`.
 6. Icons are `DoodleIcon(Doodle.x)`; never Material `Icons`.
-7. Colours from `context.colors`, styles from `context.type` (hand, the app's own short words, never below 24: `display headline title door label`; body face, everything you read: `contentTitle reading rowTitle body meta caption tag mono`). No `fontSize:` in app code. Sentences are ink; `pencil` for meta, `graphite` only for placeholders and disabled. Charts and people: `context.colors.series(i)`.
+7. Colours from `context.colors`, styles from `context.type` (always hand-lettered, the app's own short words: `display headline title door label`; follow the user's writing style, hand-lettered in handwritten and plain in formal: `contentTitle rowTitle tag`; always the voice's own face: `reading body meta caption mono`). Use the role and never a font, so both styles work; never change a user's voice or the default (handwritten) in an app. No `fontSize:` in app code. Sentences are ink; `pencil` for meta, `graphite` only for placeholders and disabled. Charts and people: `context.colors.series(i)`.
 12. Content rows (talks, people, models, files) are `ItemRow`, never `Door`; long text and model answers are `Prose`. Data and names keep their capitals and are never Caveat.
 8. Red pen (`danger: true`, `alert: true`, `color: c.redPen`) only for private or destructive things.
 9. Wide screens: `TwoPane(list: …, detail: …)` or check `context.isWide`.
@@ -57,4 +57,4 @@ Checklist for every screen:
 
 ## Fonts
 
-Caveat (hand), Nunito (the default reading voice), Inter, Shantell Sans (variable, `INFM` axis): bundled in `packages/base_design/fonts` (SIL OFL). Apps never declare fonts; the theme sets `package: 'base_design'`.
+Caveat (hand), Shantell Sans (variable, `INFM` axis; neat hand is the default voice), Patrick Hand, Nunito, Inter: bundled in `packages/base_design/fonts` (SIL OFL). Apps never declare fonts; the theme sets `package: 'base_design'`.

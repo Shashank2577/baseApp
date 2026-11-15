@@ -119,9 +119,13 @@ Color seriesColor(int index, [Brightness brightness = Brightness.light]) {
   return set[index % set.length];
 }
 
-/// The face everything you read is set in. Headlines, buttons and nav words
-/// are always Caveat; the user picks this in settings (friendly, formal or
-/// neat hand). Every voice has the two weights the system uses, 400 and 600.
+/// The face everything you read is set in, picked by the user in settings.
+/// Headlines, buttons and nav words are always Caveat.
+///
+/// Voices come in two styles. With a handwriting voice ([isHand]: neat hand,
+/// loose hand, all handwritten; the default) names, row titles and tags are
+/// hand-lettered too. With a formal voice (friendly, formal) everything you
+/// read is plain type and only headings and buttons are hand-lettered.
 @immutable
 class Voice {
   const Voice._(this.token);
@@ -134,13 +138,13 @@ class Voice {
 
   static final all = [for (final t in voiceTokens) Voice._(t)];
 
-  /// Ids of voices that were removed in tokens 2.0.0, and the voice that replaces them.
-  static const retired = {'loose': 'neat', 'handwritten': 'neat'};
+  /// A handwriting face. See the class comment for what follows from it.
+  bool get isHand => token.hand;
 
-  static Voice byId(String? id) {
-    final want = retired[id] ?? id;
-    return all.firstWhere((v) => v.id == want, orElse: () => all.firstWhere((v) => v.id == defaultVoiceId));
-  }
+  /// The voices of one style: handwriting ([hand] true) or formal.
+  static List<Voice> ofStyle({required bool hand}) => [for (final v in all) if (v.isHand == hand) v];
+
+  static Voice byId(String? id) => all.firstWhere((v) => v.id == id, orElse: () => all.firstWhere((v) => v.id == defaultVoiceId));
 
   static Voice get standard => byId(defaultVoiceId);
 
@@ -187,9 +191,10 @@ TextStyle _hand(TypeToken t, Color color, double shrink) => TextStyle(
 
 /// Every text style in the system. Read with `context.type`.
 ///
-/// You read in the body face; you tap, and find your place, in hand-lettering
-/// (design/THEME.md). Caveat is never below 24 and never carries data or
-/// user content; nothing is below 13.
+/// Headings, buttons and nav words are hand-lettered. What the rest looks like
+/// follows the voice (design/THEME.md): with a handwriting voice, titles of
+/// content, row titles and tags are hand-lettered as well; with a formal voice
+/// they are in the body face. Nothing is below 13.
 @immutable
 class BaseType extends ThemeExtension<BaseType> {
   const BaseType({required this.colors, required this.voice, this.handShrink = 1});
@@ -218,21 +223,23 @@ class BaseType extends ThemeExtension<BaseType> {
   /// Buttons, links, nav words, choice pills. 24/28.
   TextStyle get label => _hand(HandTypeTokens.label, colors.ink, handShrink);
 
-  /// Removed in tokens 2.0.0: Caveat below 24 cannot be read. Tags, step
-  /// numbers and badges use [tag] (the body face, 13/18, 600).
-  @Deprecated('Use tag (body face) for tags and badges, or label for buttons')
-  TextStyle get small => tag;
+  /// Small hand-lettering: 18/22. [tag] uses it with a handwriting voice.
+  TextStyle get small => _hand(HandTypeTokens.small, colors.ink, handShrink);
 
   // The body face (the user's voice): everything you read.
 
-  /// Title of a talk, article or person on its own page. 22/28, 600.
-  TextStyle get contentTitle => voice.of(BodyTypeTokens.contentTitle, color: colors.ink);
+  // These three follow the style of the voice.
+
+  /// Title of a talk, article or person on its own page. Hand-lettered 30/34
+  /// with a handwriting voice; the body face 22/28, 600 with a formal one.
+  TextStyle get contentTitle => voice.isHand ? title : voice.of(BodyTypeTokens.contentTitle, color: colors.ink);
 
   /// Long-form reading: summaries, transcripts, chat answers, article text. 17/26.
   TextStyle get reading => voice.of(BodyTypeTokens.reading, color: colors.ink);
 
-  /// Title of a content row (talk, person, model, file, saved item). 17/24, 600.
-  TextStyle get rowTitle => voice.of(BodyTypeTokens.rowTitle, color: colors.ink);
+  /// Title of a content row (talk, person, model, file, saved item).
+  /// Hand-lettered 24/28 with a handwriting voice; the body face 17/24, 600 with a formal one.
+  TextStyle get rowTitle => voice.isHand ? door : voice.of(BodyTypeTokens.rowTitle, color: colors.ink);
 
   /// Sentences, intros, field text, list items. 16/24, ink.
   TextStyle get body => voice.of(BodyTypeTokens.body, color: colors.ink);
@@ -243,8 +250,9 @@ class BaseType extends ThemeExtension<BaseType> {
   /// Timestamps, counts, sizes, "on this device". 13/18, pencil.
   TextStyle get caption => voice.of(BodyTypeTokens.caption, color: colors.pencil);
 
-  /// Tags, step numbers, badges. 13/18, 600, ink.
-  TextStyle get tag => voice.of(BodyTypeTokens.tag, color: colors.ink);
+  /// Tags, step numbers, badges. Hand-lettered 18/22 with a handwriting
+  /// voice; the body face 13/18, 600 with a formal one.
+  TextStyle get tag => voice.isHand ? small : voice.of(BodyTypeTokens.tag, color: colors.ink);
 
   /// Placeholders like [NAME_1], tool calls, logs. 13/20, ink.
   TextStyle get mono => TextStyle(
@@ -262,7 +270,7 @@ class BaseType extends ThemeExtension<BaseType> {
       voice.style(size, lineHeight, weight: weight, color: color ?? colors.ink);
 
   /// Every named style, for tests and the design catalogue.
-  Map<String, TextStyle> get hand => {'display': display, 'headline': headline, 'title': title, 'door': door, 'label': label};
+  Map<String, TextStyle> get hand => {'display': display, 'headline': headline, 'title': title, 'door': door, 'label': label, 'small': small};
   Map<String, TextStyle> get bodyRoles => {
     'contentTitle': contentTitle,
     'reading': reading,

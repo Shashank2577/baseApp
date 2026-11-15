@@ -2,6 +2,8 @@
 
 Reviewed 15 November 2026 against `design/tokens.json` 1.0.0, `packages/base_design`, Burrow 3.3 (Android-Showcase) and PhoneDots 0.8. This file is a spec. Nothing in any app was changed.
 
+> **After the review (tokens 2.1.0).** The structure, spacing, colour and size findings below were applied and stay. The font decision was not what the owner asked for: the handwriting faces are back as the default, and the plain faces described here are the "formal" writing style a user can pick in settings. Where this file says a face was removed or that data is never hand-lettered, [`THEME.md`](THEME.md) is what holds now.
+
 **The decision in one paragraph.** The hand-drawn look stays, but hand-lettering goes back to being a heading and a button, and everything you actually read becomes a plain, clearly legible sans. Today almost every sentence on a page is 13–15sp grey handwriting, and anything bigger is cursive Caveat. From 2.0.0 the default reading face is Nunito at 16sp in ink, Caveat is never smaller than 24sp and never carries data or user content, grey text is darker, the two most handwritten voices are removed, and nothing readable is below 13sp. Pages get about 15–20% taller. That is the price, and it is worth paying.
 
 ## How this was checked

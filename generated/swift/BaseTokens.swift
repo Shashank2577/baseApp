@@ -3,7 +3,7 @@
 import SwiftUI
 
 public enum BaseTokens {
-    public static let version = "2.0.0"
+    public static let version = "2.1.0"
     public enum Light {
         public static let paper = Color(.sRGB, red: 1.000, green: 1.000, blue: 1.000, opacity: 1.000)
         public static let ink = Color(.sRGB, red: 0.102, green: 0.102, blue: 0.102, opacity: 1.000)

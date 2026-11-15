@@ -22,17 +22,26 @@ void main() {
     }
   });
 
-  test('voices: three, with the friendly sans as the default; retired voices map to neat', () {
-    expect(Voice.all.map((v) => v.id), ['friendly', 'formal', 'neat']);
-    expect(Voice.standard.id, 'friendly');
-    for (final v in Voice.all) {
-      expect(v.token.scale, 1.0, reason: v.id);
-    }
-    expect(Voice.byId('loose').id, 'neat');
-    expect(Voice.byId('handwritten').id, 'neat');
-    expect(Voice.byId('nonsense').id, 'friendly');
+  test('voices: handwritten (the default) and formal; an unknown id falls back to the default', () {
+    expect(Voice.all.map((v) => v.id), ['neat', 'loose', 'handwritten', 'friendly', 'formal']);
+    expect(Voice.standard.id, 'neat');
+    expect(Voice.ofStyle(hand: true).map((v) => v.id), ['neat', 'loose', 'handwritten']);
+    expect(Voice.ofStyle(hand: false).map((v) => v.id), ['friendly', 'formal']);
+    expect(Voice.byId('nonsense').id, 'neat');
     final neat = Voice.byId('neat').style(16, 24, weight: 600);
     expect(neat.fontVariations!.map((f) => f.axis), containsAll(['wght', 'INFM']));
+  });
+
+  test('names, row titles and tags are hand-lettered with a handwriting voice, plain with a formal one', () {
+    for (final v in Voice.all) {
+      final t = BaseType(colors: BaseColors.light, voice: v);
+      for (final (name, s) in [('contentTitle', t.contentTitle), ('rowTitle', t.rowTitle), ('tag', t.tag)]) {
+        expect(s.fontFamily, contains(v.isHand ? handFontFamily : v.token.family), reason: '$name in ${v.id}');
+      }
+      // What you read at length is always the voice's own face.
+      expect(t.reading.fontFamily, contains(v.token.family));
+      expect(t.body.fontFamily, contains(v.token.family));
+    }
   });
 
   double luminance(Color c) {
@@ -68,9 +77,9 @@ void main() {
   }
 
   for (final v in Voice.all) {
-    test('no style is under 13, and no hand style under 24 (${v.id})', () {
+    test('no style is under 13, and no hand style but small under 24 (${v.id})', () {
       final t = BaseType(colors: BaseColors.light, voice: v);
-      t.hand.forEach((name, s) => expect(s.fontSize, greaterThanOrEqualTo(SizeTokens.minHand), reason: name));
+      t.hand.forEach((name, s) => expect(s.fontSize, greaterThanOrEqualTo(name == 'small' ? 18 : SizeTokens.minHand), reason: name));
       t.bodyRoles.forEach((name, s) => expect(s.fontSize, greaterThanOrEqualTo(SizeTokens.minText), reason: name));
       for (final s in [...t.hand.values, ...t.bodyRoles.values]) {
         expect([400, 600, 700], contains(s.fontWeight!.value));
@@ -253,7 +262,7 @@ void main() {
   testWidgets('prose renders markdown instead of showing it raw', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: BaseTheme.build(brightness: Brightness.light),
+        theme: BaseTheme.build(brightness: Brightness.light, voice: Voice.byId('friendly')),
         home: const Material(child: Prose('## Plan\nUse **Gemma 4 E2B** now.\n- one\n- two')),
       ),
     );

@@ -1,7 +1,7 @@
 name: burrow
 description: "Burrow: talks, to-dos, people and mask, written up on this device."
 publish_to: none
-version: 1.0.1+2
+version: 1.0.2+3
 resolution: workspace
 
 environment:

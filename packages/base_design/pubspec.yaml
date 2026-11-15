@@ -43,3 +43,6 @@ flutter:
     - family: ShantellSans
       fonts:
         - asset: fonts/shantell_variable.ttf
+    - family: PatrickHand
+      fonts:
+        - asset: fonts/patrickhand_regular.ttf

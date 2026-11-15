@@ -63,14 +63,22 @@ void main() {
     expect(find.text('answer'), findsOneWidget);
     expect(find.textContaining('**'), findsNothing, reason: 'the answer is rendered as prose, not raw markdown');
 
-    // Settings: switch to dark and to the neat hand.
+    // Settings: switch to dark, to formal type and back to a hand.
     await tester.tap(find.byTooltip('settings').first);
     await settle(tester);
     await tester.tap(find.text('dark'));
     await settle(tester);
-    await tester.scrollUntilVisible(find.text('neat hand'), 200, scrollable: find.byType(Scrollable).last);
-    await tester.tap(find.text('neat hand'));
+    expect(s.settings.voice.isHand, isTrue, reason: 'a new install is handwritten');
+    await tester.scrollUntilVisible(find.text('formal'), 200, scrollable: find.byType(Scrollable).last);
+    await tester.tap(find.text('formal').first);
     await settle(tester);
+    expect(s.settings.voiceId, 'friendly');
+    expect(find.text('loose hand'), findsNothing);
+    await tester.ensureVisible(find.text('handwritten'));
+    await settle(tester);
+    await tester.tap(find.text('handwritten'));
+    await settle(tester);
+    expect(find.text('loose hand'), findsOneWidget);
     expect(s.settings.themeMode, ThemeMode.dark);
     expect(s.settings.voiceId, 'neat');
 

@@ -18,29 +18,32 @@ void main() {
     expect(again.themeMode, ThemeMode.dark);
     expect(again.voice.id, 'formal');
     expect(again.neverOnline, isTrue);
-    expect(again.typeNotice, isFalse, reason: 'a fresh install has nothing to be told');
   });
 
-  test('settings from before tokens 2.0 get the plain reading voice once, then keep the user\'s choice', () async {
+  test('the stored voice: older installs keep theirs, 2.0 installs get handwriting back once', () async {
+    // From before 2.0 (no version): the voice the user had is kept.
     final store = MemoryJsonStore();
-    await store.write('base.settings', {'voice': 'neat', 'onboarded': true, 'themeMode': 'dark'});
+    await store.write('base.settings', {'voice': 'loose', 'onboarded': true, 'themeMode': 'dark'});
     final s = await BaseSettings.load(store);
-    expect(s.voiceId, 'friendly');
-    expect(s.typeNotice, isTrue);
+    expect(s.voiceId, 'loose');
+    expect(s.voice.isHand, isTrue);
     expect(s.themeMode, ThemeMode.dark);
     expect((await store.read('base.settings') as Map)['typeVersion'], BaseSettings.typeVersion);
-    await s.update((x) {
-      x
-        ..voiceId = 'neat'
-        ..typeNotice = false;
-    });
-    final again = await BaseSettings.load(store);
-    expect(again.voiceId, 'neat', reason: 'the reset happens once');
-    expect(again.typeNotice, isFalse);
 
-    // A retired voice stored after the migration maps to the neat hand.
-    await store.write('base.settings', {'voice': 'loose', 'typeVersion': 2});
-    expect((await BaseSettings.load(store)).voiceId, 'neat');
+    // 2.0 moved everyone to "friendly": back to the handwritten default, once.
+    await store.write('base.settings', {'voice': 'friendly', 'typeVersion': 2, 'onboarded': true});
+    final moved = await BaseSettings.load(store);
+    expect(moved.voiceId, 'neat');
+    expect(moved.onboarded, isTrue);
+    await moved.update((x) => x.voiceId = 'friendly');
+    expect((await BaseSettings.load(store)).voiceId, 'friendly', reason: 'a choice made after that sticks');
+
+    // A different voice picked under 2.0 was a choice: kept.
+    await store.write('base.settings', {'voice': 'formal', 'typeVersion': 2});
+    expect((await BaseSettings.load(store)).voiceId, 'formal');
+
+    // A fresh install is handwritten.
+    expect((await BaseSettings.load(MemoryJsonStore())).voice.isHand, isTrue);
   });
 
   test('the Hugging Face token is kept as a secret, apart from the backed-up settings', () async {

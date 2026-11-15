@@ -159,7 +159,7 @@ String dartTokens(Map t) {
     ..writeln('const monoFontFallback = <String>[${monoFallback.map(_q).join(', ')}];')
     ..writeln()
     ..writeln('class VoiceToken {')
-    ..writeln('  const VoiceToken(this.id, this.label, this.note, this.family, this.informality, this.scale);')
+    ..writeln('  const VoiceToken(this.id, this.label, this.note, this.family, this.informality, this.scale, {this.hand = false});')
     ..writeln('  final String id;')
     ..writeln('  final String label;')
     ..writeln('  final String note;')
@@ -168,12 +168,15 @@ String dartTokens(Map t) {
     ..writeln("  /// Shantell Sans' INFM axis, or null for fonts without it.")
     ..writeln('  final double? informality;')
     ..writeln('  final double scale;')
+    ..writeln('')
+    ..writeln('  /// A handwriting face: with it, names, row titles and tags are hand-lettered too.')
+    ..writeln('  final bool hand;')
     ..writeln('}\n')
     ..writeln('const voiceTokens = <VoiceToken>[');
   for (final v in (font['voices'] as List).cast<Map>()) {
     b.writeln(
       '  VoiceToken(${_q(v['id'] as String)}, ${_q(v['label'] as String)}, ${_q(v['note'] as String)}, '
-      '${_q(v['family'] as String)}, ${_num(v['informality'])}, ${_num(v['scale'])}),',
+      '${_q(v['family'] as String)}, ${_num(v['informality'])}, ${_num(v['scale'])}${v['hand'] == true ? ', hand: true' : ''}),',
     );
   }
   b

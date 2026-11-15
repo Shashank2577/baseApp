@@ -4,7 +4,7 @@ The starting point for the next 20 apps. One Flutter codebase per app builds for
 
 - **one model store per device**: an AI model is downloaded once and used by every app ([docs/MODEL_STORE.md](docs/MODEL_STORE.md));
 - **one design system**: Burrow's hand-drawn minimal look, now cross-platform ([design/THEME.md](design/THEME.md));
-- **one shell**: onboarding, settings (light/dark, three reading voices), models page, privacy page with a ledger and "never go online";
+- **one shell**: onboarding, settings (light/dark, handwritten or formal writing), models page, privacy page with a ledger and "never go online";
 - **one set of rules and skills**, so a change made once reaches every app ([docs/PROPAGATION.md](docs/PROPAGATION.md)).
 
 It is built from the three existing apps: the design system from **Burrow** (Android-Showcase), the model hub and on-device engines from **PhoneDots**, and the release discipline from **Spreix** (spreix-notetaker-apps). What came from where, and why Flutter: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Lessons carried over: [docs/LESSONS.md](docs/LESSONS.md).

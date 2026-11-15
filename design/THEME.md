@@ -1,6 +1,6 @@
 # The look: hand-drawn minimal
 
-Every app on the platform reads like a neat notebook page. The paper is white (warm charcoal at night), everything is drawn in ink, and one yellow marker swipe per screen shows what matters. Headings, buttons and nav words are hand-lettered in Caveat; everything you read is set in a plain, legible face (the reading "voice" each user picks).
+Every app on the platform reads like a neat notebook page. The paper is white (warm charcoal at night), everything is drawn in ink, and one yellow marker swipe per screen shows what matters. Headings, buttons and nav words are hand-lettered in Caveat. Each user picks the writing style in settings: **handwritten** (the default: a handwriting face for what you read, and names, row titles and tags hand-lettered too) or **formal** (plain type for everything you read).
 
 This is Burrow's design system (Android-Showcase, `design/burrow-a/theme`), lifted out of one Android app so that every app, on every platform, draws the same way. The wobble function is bit-for-bit Burrow's, so a divider in a Flutter app and in Burrow's Compose code are the same line.
 
@@ -13,13 +13,13 @@ This is Burrow's design system (Android-Showcase, `design/burrow-a/theme`), lift
 
 Change a value in `tokens.json` or `doodles.json`, run `./base gen`, and every app picks it up on its next build. Never edit generated files.
 
-## Rules (tokens 2.0.0)
+## Rules (tokens 2.1.0)
 
-The hand-drawn look stays; hand-lettering is for headings and buttons, and everything you read is a plain, legible sans. The reasons and the measurements are in [`REVIEW.md`](REVIEW.md).
+The structure, spacing and colour rules come from the readability review ([`REVIEW.md`](REVIEW.md)). The review also made plain type the only choice (2.0.0); 2.1.0 gave the fonts back: which face a role uses follows the writing style the user picked, and handwritten is the default. Rules 1 to 3 say what each style does.
 
-1. **You read in the body face. You tap, and you find your place, in hand-lettering.** Caveat is for the app's own short words: the wordmark, page titles, section heads, rows that name a place in the app ("models", "privacy"), buttons, links and nav words. Four words or fewer.
-2. **Caveat is never smaller than 24.** There is no `small` style.
-3. **Data and user content are never hand-lettered.** Names of talks, people, models and files, article titles, memory facts, numbers with units, dates and times are in the body face. One exception: a single big figure (a record timer) at `display` size.
+1. **The app's own short words are always hand-lettered.** Caveat for the wordmark, page titles, section heads, rows that name a place in the app ("models", "privacy"), buttons, links and nav words. Four words or fewer.
+2. **Screens use roles, never a font.** `contentTitle`, `rowTitle` and `tag` are Caveat in the handwritten style (30/34, 24/28 and `small` 18/22) and the body face in the formal style. Use the role and both styles work; never pick Caveat or a family yourself.
+3. **Long text and numbers are always in the voice's own face.** Summaries, transcripts, answers, meta lines, sizes, dates and times use `reading`, `body`, `meta` and `caption` in both styles. Caveat below 24 is only the `small` role, for a tag or a badge of a word or two.
 4. **Sentences are ink.** `pencil` is for meta lines of at most two lines. `graphite` is for placeholders and disabled things only; nothing that informs is graphite.
 5. **Nothing readable is below 13.** Body is 16, long-form reading 17.
 6. **Two weights in the body face: 400 and 600.** Every voice has both.
@@ -43,29 +43,31 @@ And from before, still true: every page opens with a `PageIntro` (its name and o
 | Section head, sheet title, empty-state line | `title` 30/34 | ink |
 | A row that leads to a place in the app; switch titles | `door` 24/28 | ink |
 | Buttons, links, nav words, choice pills | `label` 24/28 | ink (paper on the ink pill) |
-| Title of a talk, article, person on its own page | `contentTitle` 22/28 600 | ink |
-| Title of a content row (talk, person, model, file) | `rowTitle` 17/24 600 | ink |
+| Title of a talk, article, person on its own page | `contentTitle` hand 30/34, formal 22/28 600 | ink |
+| Title of a content row (talk, person, model, file) | `rowTitle` hand 24/28, formal 17/24 600 | ink |
 | Summaries, transcripts, chat answers, article text | `reading` 17/26 | ink |
 | Sentences, intros, field text, list items | `body` 16/24 | ink |
 | Second line of a row, notes under a head | `meta` 14/20 | pencil |
 | Timestamps, counts, sizes, "on this device" | `caption` 13/18 | pencil |
-| Tags, step numbers, badges | `tag` 13/18 600 | ink |
+| Tags, step numbers, badges | `tag` hand 18/22, formal 13/18 600 | ink |
 | Placeholders like `[NAME_1]`, tool calls, logs | `mono` 13/20 | ink |
 | Placeholder text in a field, disabled labels | the style of the live text | graphite |
 
-The first five are Caveat; the rest are in the reading voice. Hand styles grow with the OS text size up to 1.3×; body styles follow it fully. Font sizes appear only in `tokens.json`: `./base check` fails on `fontSize:` in app code.
+The first five are always Caveat; `contentTitle`, `rowTitle` and `tag` follow the writing style; the rest are in the reading voice. Hand styles grow with the OS text size up to 1.3×; body styles follow it fully. Font sizes appear only in `tokens.json`: `./base check` fails on `fontSize:` in app code.
 
 ## Reading voices and light/dark
 
-Headlines are always Caveat. The face you read in is a voice the user picks in *settings → handwriting*:
+Headlines are always Caveat. In *settings → writing* the user picks **handwritten** or **formal**, then a voice of that style (`Voice.isHand`, `"hand"` in `tokens.json`):
 
-| Voice | Font |
-| --- | --- |
-| **friendly** (default) | Nunito 400/600 |
-| formal | Inter 400/600 |
-| neat hand | Shantell Sans, informality 0, 400/600 |
+| Style | Voice | Font |
+| --- | --- | --- |
+| handwritten | **neat hand** (default) | Shantell Sans, informality 0, 400/600 |
+| handwritten | loose hand | Shantell Sans, informality 100 |
+| handwritten | all handwritten | Patrick Hand |
+| formal | friendly | Nunito 400/600 |
+| formal | formal | Inter 400/600 |
 
-"loose hand" and "all handwritten" were removed in 2.0.0. Settings saved before 2.0 are moved to friendly once (`BaseSettings`, `typeVersion: 2`), and the settings page says so once; a stored retired voice maps to neat hand.
+A voice the user picked is never changed for them. The one exception undoes 2.0.0, which had moved every install to friendly: settings stored with `typeVersion: 2` and friendly go back to neat hand once (`BaseSettings`, `typeVersion: 3`).
 
 *settings → light or dark* is like the device, light, or dark, independent of the OS. Dark is a warm "night notebook", not white on black. Chart and person colours have a lifted dark set (`context.colors.series(i)`).
 
@@ -106,7 +108,7 @@ Wide screens: one column of 560 (`maxColumn`); long text at most 600 (`readingCo
 | `HandNav`, `HandNav.rail` | Words as navigation: along the bottom, or a rail on the left from 1000 |
 | `SectionHead`, `Body`, `Meta`, `OnDeviceStamp` | Typography helpers |
 | `Steps`, `StepHead`, `DoneNote`, `HandEmpty` | Flow helpers |
-| `HandTag`, `PickMark`, `Snapshot` | Tags in the body face on smudge, drawn ticks, tilted photos |
+| `HandTag`, `PickMark`, `Snapshot` | Tags (the `tag` role) on smudge, drawn ticks, tilted photos |
 | `HandDivider`, `HandProgress`, `HandUnderline`, `HandCircle` | Wobbly strokes |
 | `showHandSheet`, `confirmSheet` | Bottom sheets with a squiggle handle |
 | `TwoPane` | List (360) and detail side by side from 840 |
