@@ -16,3 +16,4 @@ export 'src/engine_types.dart';
 export 'src/engines.dart';
 export 'src/platform_engines.dart';
 export 'src/runtime.dart';
+export 'src/tool_call_parser.dart';

@@ -2,8 +2,13 @@ import 'package:base_core/base_core.dart';
 import 'package:flutter/material.dart';
 
 import '../app_config.dart';
+import '../data/burrow_data.dart';
+import '../data/models.dart';
+import '../logic/ask_agent.dart';
+import 'talk_page.dart';
 
-/// One question, one streamed answer, from the on-device model.
+/// "ask Burrow": a small model on this device looks things up in your talks
+/// with Burrow's own tools, shows every step, and cites the talks it used.
 class AskPage extends StatefulWidget {
   const AskPage(BuildContext context, {super.key});
 
@@ -13,40 +18,7 @@ class AskPage extends StatefulWidget {
 
 class _AskPageState extends State<AskPage> {
   final _question = TextEditingController();
-  String _answer = '';
-  bool _busy = false;
-
-  String get _modelId => AppModels.ask;
-
-  Future<void> _ask() async {
-    final s = BaseScope.of(context);
-    final text = _question.text.trim();
-    if (text.isEmpty) return;
-    setState(() {
-      _busy = true;
-      _answer = '';
-    });
-    // Loading and answering can take a while: keep the app awake meanwhile
-    // (an ongoing notification on Android; the screen stays on on iOS).
-    if (!s.ai.isDemo) await KeepAwake.begin('answer', 'writing an answer', ai: true);
-    try {
-      final spec = s.models.spec(_modelId);
-      if (!s.ai.llm.isLoaded(_modelId)) {
-        await s.ai.llm.load(modelId: _modelId, path: s.models.pathOf(_modelId, spec.files.first.name));
-      }
-      await for (final e in s.ai.llm.generate(
-        GenerationRequest(modelId: _modelId, sessionId: 'ask', history: [EngineTurn(role: TurnRole.user, text: text)]),
-      )) {
-        if (e is TokenEvent) setState(() => _answer += e.text);
-        if (e is ErrorEvent) setState(() => _answer = e.message);
-        // Only a finished answer counts; an error is not "answered".
-        if (e is DoneEvent) s.ledger.add(AppLedger.questions);
-      }
-    } finally {
-      if (!s.ai.isDemo) await KeepAwake.end('answer');
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+  bool _confirming = false;
 
   @override
   void dispose() {
@@ -56,38 +28,148 @@ class _AskPageState extends State<AskPage> {
 
   @override
   Widget build(BuildContext context) {
-    final s = BaseScope.of(context);
+    final data = BurrowData.of(context);
+    final s = data.services;
+    final ask = AskSession.of(data);
     return ListenableBuilder(
-      listenable: s.models,
+      listenable: Listenable.merge([ask, s.models]),
       builder: (context, _) {
-        // The demo engine needs no model file; a real engine does.
-        final ready = s.ai.isDemo || s.models.isReady(_modelId);
+        final ready = s.ai.isDemo || s.models.isReady(AppModels.gemma);
+        if (ask.pending != null && !_confirming) {
+          _confirming = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _confirm(ask));
+        }
         return HandPage(
+          wordmark: s.config.wordmark,
           actions: const [ShellActions()],
-          bottom: InkButton('ask', busy: _busy, trailing: Doodle.arrow, onPressed: ready ? _ask : null),
+          bottom: InkButton(
+            'ask',
+            busy: ask.busy,
+            trailing: Doodle.arrow,
+            onPressed: ready && !ask.busy ? () => ask.ask(_question.text) : null,
+          ),
           children: [
-            PageIntro(
-              title: 'ask',
-              purpose: 'Ask the model on this device a question. Nothing you type leaves it.',
+            const PageIntro(
+              title: 'ask Burrow',
+              purpose: 'Ask about your talks, people and to-dos. A small model on this device looks it up with Burrow\'s own tools and shows every step. Nothing leaves the device.',
               doodle: Doodle.bubble,
             ),
             if (!ready)
               DoneNote(
-                '${s.models.spec(_modelId).name} is not on this device yet.',
+                '${s.models.spec(AppModels.gemma).name} is not on this device yet (${formatBytes(s.models.spec(AppModels.gemma).bytes)}, once).',
                 action: 'get it',
                 onAction: () => pushPage(context, const ModelsPage()),
               ),
-            HandField(controller: _question, placeholder: 'what would you like to know?', minHeight: 96, leading: Doodle.pen),
-            const SizedBox(height: 16),
-            if (_answer.isNotEmpty) ...[
-              const SectionHead('answer'),
-              Body(_answer),
+            const SizedBox(height: 8),
+            HandField(
+              controller: _question,
+              placeholder: 'what did we decide about the launch?',
+              minHeight: 80,
+              leading: Doodle.pen,
+              onSubmitted: (q) {
+                if (ready) ask.ask(q);
+              },
+            ),
+            const SizedBox(height: 12),
+            if (ask.phase == AskPhase.idle)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final q in const ['what is due this week?', 'what did we decide?', 'what did I promise?'])
+                    ChoicePill(
+                      q,
+                      selected: false,
+                      onPressed: () {
+                        if (!ready) return;
+                        _question.text = q;
+                        ask.ask(q);
+                      },
+                    ),
+                ],
+              ),
+            if (ask.phase == AskPhase.loading) const Meta('getting the model ready…'),
+            if (ask.steps.isNotEmpty) ...[
               const SizedBox(height: 8),
-              OnDeviceStamp(text: s.ai.isDemo ? 'demo engine: scripted, not a model' : 'answered on this device'),
+              SectionHead('what Burrow did', note: '${ask.steps.length} step${ask.steps.length == 1 ? '' : 's'}'),
+              for (final st in ask.steps) _step(context, st),
             ],
+            if (ask.phase == AskPhase.thinking && ask.steps.isEmpty) const Meta('reading your question…'),
+            if (ask.answer != null) ...[
+              const HandDivider(seed: 6),
+              const SectionHead('answer'),
+              Body(ask.answer!),
+              const SizedBox(height: 8),
+              OnDeviceStamp(text: ask.demo ? 'demo engine: Burrow\'s tools, not a model' : 'answered on this device'),
+              if (ask.sources.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const SectionHead('from'),
+                for (final src in ask.sources)
+                  Door(
+                    src.title,
+                    meta: [if (src.at != null) 'at ${clock(src.at!)}', if (src.quote != null) '"${src.quote}"'].join(' · '),
+                    onTap: data.talk(src.talkId) == null ? null : () => pushPage(context, TalkPage(talkId: src.talkId)),
+                  ),
+              ],
+              const SizedBox(height: 8),
+              HandLink(
+                'ask something else',
+                onPressed: () {
+                  _question.clear();
+                  ask.clear();
+                },
+              ),
+            ],
+            if (ask.error != null) DoneNote('Could not answer: ${ask.error}', action: 'try again', onAction: () => ask.ask(ask.question)),
           ],
         );
       },
     );
+  }
+
+  Widget _step(BuildContext context, AskStep st) {
+    final c = context.colors;
+    final doodle = switch (st.status) {
+      StepStatus.running => Doodle.squiggle,
+      StepStatus.done => Doodle.tick,
+      StepStatus.declined || StepStatus.failed => Doodle.cross,
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DoodleIcon(doodle, size: 18, color: st.status == StepStatus.failed ? c.redPen : c.pencil),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(st.label, style: context.type.small),
+                if (st.args.isNotEmpty) Text(st.args, style: context.type.mono),
+                if (st.summary != null) Meta(st.summary!),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirm(AskSession ask) async {
+    final sentence = ask.pending;
+    if (sentence == null) {
+      _confirming = false;
+      return;
+    }
+    final yes = await confirmSheet(
+      context,
+      title: 'Burrow wants to $sentence',
+      body: 'Nothing changes unless you say yes.',
+      confirm: 'do it',
+      cancel: 'no',
+    );
+    ask.decide(yes);
+    _confirming = false;
   }
 }

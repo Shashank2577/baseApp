@@ -1,6 +1,7 @@
 name: Release
 
-# Tag <app>-v<version> (e.g. starter-v1.2.0), or run by hand.
+# Tag <app>-v<version> (e.g. starter-v1.2.0), or run by hand with app, version
+# and publish: the publish job then creates the tag and the release itself.
 on:
   push:
     tags: ['*-v*']
@@ -57,7 +58,7 @@ jobs:
         with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
       - run: flutter pub get
       - run: ./base gen --check && ./base check
-      - run: flutter analyze && flutter test packages/base_design packages/base_models packages/base_core apps/${{ needs.prepare.outputs.app }}
+      - run: flutter analyze && flutter test packages/base_design packages/base_models packages/base_core packages/base_ai apps/${{ needs.prepare.outputs.app }}
 
   android-web-linux:
     needs: [prepare, check]
@@ -104,30 +105,13 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: linux-hosted, path: out/*, if-no-files-found: error }
 
+  # Unsigned iOS .ipa and macOS zip (Apple silicon), with the real engines.
   apple:
     needs: [prepare, check]
-    runs-on: macos-latest
-    env:
-      APP: ${{ needs.prepare.outputs.app }}
-      VERSION: ${{ needs.prepare.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
-      - run: flutter pub get
-      - name: macOS and iOS
-        working-directory: apps/${{ env.APP }}
-        shell: bash
-        run: |
-          # Signing and notarisation need the Apple secrets (see the release skill);
-          # until they exist the artifacts are labelled UNSIGNED.
-          flutter build macos --release --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
-          flutter build ios --release --no-codesign --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
-          mkdir -p "$GITHUB_WORKSPACE/out"
-          ditto -c -k --keepParent build/macos/Build/Products/Release/*.app "$GITHUB_WORKSPACE/out/$APP-$VERSION-macos-UNSIGNED.zip"
-          ditto -c -k --keepParent build/ios/iphoneos/Runner.app "$GITHUB_WORKSPACE/out/$APP-$VERSION-ios-UNSIGNED.zip"
-      - uses: actions/upload-artifact@v4
-        with: { name: apple, path: out/*, if-no-files-found: error }
+    uses: ./.github/workflows/apple-build.yml
+    with:
+      app: ${{ needs.prepare.outputs.app }}
+      version: ${{ needs.prepare.outputs.version }}
 
   windows:
     needs: [prepare, check]
@@ -157,21 +141,44 @@ jobs:
     env:
       APP: ${{ needs.prepare.outputs.app }}
       VERSION: ${{ needs.prepare.outputs.version }}
-      GH_TOKEN: ${{ github.token }}
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { path: out, merge-multiple: true }
-      - name: Checksums and release
-        working-directory: out
+      - name: Checksums and notes
+        id: notes
         shell: bash
         run: |
-          sha256sum ./* > SHA256SUMS.txt
-          FLAGS=""
-          NOTES="$APP $VERSION. Verify downloads with SHA256SUMS.txt."
-          if ls | grep -qE 'UNSIGNED|DEBUG|TESTKEY' || [[ "$VERSION" == *-* ]]; then
-            FLAGS="--prerelease"
-            NOTES="$NOTES Some artifacts are UNSIGNED: for testing only."
-          fi
-          TARGET=""
-          [ "${{ github.event_name }}" = "workflow_dispatch" ] && TARGET="--target ${{ github.sha }}"
-          gh release create "$APP-v$VERSION" ./* --repo "${{ github.repository }}" --title "$APP $VERSION" --notes "$NOTES" $FLAGS $TARGET
+          cd out
+          rm -f ./*.sha256
+          sha256sum ./* > "$RUNNER_TEMP/SHA256SUMS.txt"
+          for f in *; do sha256sum "$f" > "$f.sha256"; done
+          mv "$RUNNER_TEMP/SHA256SUMS.txt" .
+          ls -la
+          PRE=false
+          if ls | grep -qiE 'unsigned|debug|testkey' || [[ "$VERSION" == *-* ]]; then PRE=true; fi
+          echo "prerelease=$PRE" >> "$GITHUB_OUTPUT"
+          {
+            echo "$APP $VERSION. Verify downloads with SHA256SUMS.txt (or the .sha256 file next to each)."
+            echo
+            if [ -f "$GITHUB_WORKSPACE/apps/$APP/RELEASE_NOTES.md" ]; then cat "$GITHUB_WORKSPACE/apps/$APP/RELEASE_NOTES.md"; echo; fi
+            echo "## Installing test builds"
+            echo
+            echo '- **iPhone** (`*-ios-unsigned.ipa`): sideload with AltStore or Sideloadly and a free Apple ID. A free Apple ID signs the app for 7 days; after that it stops opening until you sideload it again (AltStore can refresh it).'
+            echo '- **Mac** (`*-macos-arm64-unsigned.zip`, Apple silicon only): unzip, move the app to Applications, then right-click it and choose Open the first time (or run `xattr -dr com.apple.quarantine /Applications/<App>.app`). It is not notarised.'
+            echo '- **Models across apps on iPhone and Mac** are shared through the App Group `group.com.showcase.shared`, which needs a paid Apple developer team. Without it each app keeps its models in its own folder, so another app downloads them again.'
+            echo '- **Android** (`*-TESTKEY.apk`): signed with the public vendor test key; fine for testing, never for a store.'
+            echo '- **Windows, Linux, web**: run the demo engines (labelled as demo); the on-device models run on iPhone, Mac and Android.'
+            if [ "$PRE" = true ]; then echo; echo "Some artifacts are unsigned or test-signed: this is a pre-release, for testing only."; fi
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+      # Creates the tag on this commit as well, so a run by hand needs no pushed tag.
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.APP }}-v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ env.APP }} ${{ env.VERSION }}
+          body_path: ${{ runner.temp }}/notes.md
+          prerelease: ${{ steps.notes.outputs.prerelease }}
+          files: out/*
+          fail_on_unmatched_files: true
