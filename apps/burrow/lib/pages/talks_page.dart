@@ -8,6 +8,7 @@ import '../data/models.dart';
 import '../logic/audio_io.dart';
 import '../logic/processor.dart';
 import '../widgets/talk_bits.dart';
+import '../widgets/type_roles.dart';
 import 'record_page.dart';
 import 'talk_page.dart';
 
@@ -22,6 +23,14 @@ class TalksPage extends StatefulWidget {
 class _TalksPageState extends State<TalksPage> {
   String? _open;
   bool _importing = false;
+  final _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   void _show(Talk t) {
     if (context.isWide) {
@@ -40,20 +49,37 @@ class _TalksPageState extends State<TalksPage> {
         final open = _open == null ? null : data.talk(_open!);
         return TwoPane(
           list: _list(context, data),
-          detail: open == null ? null : TalkPage(key: ValueKey(open.id), talkId: open.id, embedded: true),
+          detail: open == null
+              ? const HandPage(
+                  children: [
+                    SizedBox(height: 40),
+                    HandEmpty(title: 'pick a talk', body: 'Its summary, to-dos and transcript open here.', doodle: Doodle.arrow),
+                  ],
+                )
+              : TalkPage(key: ValueKey(open.id), talkId: open.id, embedded: true),
         );
       },
     );
   }
 
   Widget _list(BuildContext context, BurrowData data) {
-    final talks = data.talks;
+    final q = _query.trim().toLowerCase();
+    final talks = q.isEmpty
+        ? data.talks
+        : data.talks
+              .where(
+                (t) =>
+                    t.title.toLowerCase().contains(q) ||
+                    (t.summary?.gist.toLowerCase().contains(q) ?? false) ||
+                    t.lines.any((l) => l.text.toLowerCase().contains(q)),
+              )
+              .toList();
     final canRecord = data.services.store.filesDir != null;
     return HandPage(
       wordmark: context.isWide ? null : data.services.config.wordmark,
       actions: const [ShellActions()],
       bottom: InkButton(
-        'record a talk',
+        'record',
         trailing: Doodle.mic,
         onPressed: canRecord ? () => startRecording(context, onDone: _show) : null,
       ),
@@ -65,31 +91,41 @@ class _TalksPageState extends State<TalksPage> {
         ),
         Align(
           alignment: Alignment.centerLeft,
-          child: PillButton(
+          child: HandLink(
             _importing ? 'bringing it in…' : 'import a recording',
-            leading: Doodle.plus,
             onPressed: canRecord && !_importing ? () => _import(context, data) : null,
           ),
         ),
+        if (data.talks.length > 3) ...[
+          const SizedBox(height: 8),
+          HandField(
+            controller: _search,
+            singleLine: true,
+            placeholder: 'Search what was said',
+            leading: Doodle.search,
+            onChanged: (v) => setState(() => _query = v),
+          ),
+        ],
         if (!canRecord) ...[
           const SizedBox(height: 12),
           const DoneNote('Recording and importing need the app on a phone or computer; this browser preview has no files folder.'),
         ],
         const SizedBox(height: 16),
-        if (talks.isEmpty)
+        if (talks.isEmpty && q.isNotEmpty)
+          Meta('No talk mentions "$_query".')
+        else if (talks.isEmpty)
           const HandEmpty(
             title: 'no talks yet',
             body: 'Record one, or import a recording you already have. The audio stays on this device.',
             doodle: Doodle.mic,
           )
         else ...[
-          SectionHead('every talk', note: '${talks.length}'),
           for (final t in talks)
-            Door(
+            ContentRow(
               t.title,
               meta: talkMeta(data, t),
               alert: t.status == TalkStatus.failed,
-              leading: DoodleIcon(t.imported ? Doodle.plus : Doodle.mic, size: 24, color: context.colors.pencil),
+              selected: context.isWide && t.id == _open,
               onTap: () => _show(t),
             ),
         ],

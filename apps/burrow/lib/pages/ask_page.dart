@@ -5,6 +5,7 @@ import '../app_config.dart';
 import '../data/burrow_data.dart';
 import '../data/models.dart';
 import '../logic/ask_agent.dart';
+import '../widgets/type_roles.dart';
 import 'talk_page.dart';
 
 /// "ask Burrow": a small model on this device looks things up in your talks
@@ -19,6 +20,7 @@ class AskPage extends StatefulWidget {
 class _AskPageState extends State<AskPage> {
   final _question = TextEditingController();
   bool _confirming = false;
+  bool _trace = false;
 
   @override
   void dispose() {
@@ -63,7 +65,7 @@ class _AskPageState extends State<AskPage> {
             const SizedBox(height: 8),
             HandField(
               controller: _question,
-              placeholder: 'what did we decide about the launch?',
+              placeholder: 'What did we decide about the launch?',
               minHeight: 80,
               leading: Doodle.pen,
               onSubmitted: (q) {
@@ -88,38 +90,48 @@ class _AskPageState extends State<AskPage> {
                     ),
                 ],
               ),
-            if (ask.phase == AskPhase.loading) const Meta('getting the model ready…'),
-            if (ask.steps.isNotEmpty) ...[
+            if (ask.phase == AskPhase.loading) const Meta('Getting the model ready…'),
+            if (ask.busy && ask.phase != AskPhase.loading) ...[
               const SizedBox(height: 8),
-              SectionHead('what Burrow did', note: '${ask.steps.length} step${ask.steps.length == 1 ? '' : 's'}'),
-              for (final st in ask.steps) _step(context, st),
+              const HandProgress(fraction: null),
+              const SizedBox(height: 4),
+              Meta(ask.steps.isEmpty ? 'Reading your question…' : 'Looking it up: ${ask.steps.last.label}…'),
             ],
-            if (ask.phase == AskPhase.thinking && ask.steps.isEmpty) const Meta('reading your question…'),
             if (ask.answer != null) ...[
-              const HandDivider(seed: 6),
-              const SectionHead('answer'),
-              Body(ask.answer!),
+              const SizedBox(height: 24),
+              Text(ask.question, style: rowTitle(context)),
+              const SizedBox(height: 8),
+              SelectableText(ask.answer!, style: reading(context)),
               const SizedBox(height: 8),
               OnDeviceStamp(text: ask.demo ? 'demo engine: Burrow\'s tools, not a model' : 'answered on this device'),
               if (ask.sources.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 24),
                 const SectionHead('from'),
                 for (final src in ask.sources)
-                  Door(
+                  ContentRow(
                     src.title,
                     meta: [if (src.at != null) 'at ${clock(src.at!)}', if (src.quote != null) '"${src.quote}"'].join(' · '),
                     onTap: data.talk(src.talkId) == null ? null : () => pushPage(context, TalkPage(talkId: src.talkId)),
                   ),
               ],
+            ],
+            if (ask.steps.isNotEmpty && !ask.busy) ...[
               const SizedBox(height: 8),
+              HandLink(
+                _trace ? 'hide the steps' : '${ask.steps.length} step${ask.steps.length == 1 ? '' : 's'}',
+                onPressed: () => setState(() => _trace = !_trace),
+              ),
+              if (_trace) for (final st in ask.steps) _step(context, st),
+            ],
+            if (ask.answer != null)
               HandLink(
                 'ask something else',
                 onPressed: () {
                   _question.clear();
                   ask.clear();
+                  setState(() => _trace = false);
                 },
               ),
-            ],
             if (ask.error != null) DoneNote('Could not answer: ${ask.error}', action: 'try again', onAction: () => ask.ask(ask.question)),
           ],
         );
@@ -145,7 +157,7 @@ class _AskPageState extends State<AskPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(st.label, style: context.type.small),
+                Text(st.label, style: rowTitle(context)),
                 if (st.args.isNotEmpty) Text(st.args, style: context.type.mono),
                 if (st.summary != null) Meta(st.summary!),
               ],

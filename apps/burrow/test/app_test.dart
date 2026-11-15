@@ -132,7 +132,7 @@ void main() {
     expect(talk.status, TalkStatus.ready, reason: talk.error);
     expect(talk.audioFile, isNotNull);
     expect(File('${files.path}/talks/${talk.audioFile}').existsSync(), isTrue);
-    expect(find.text('the gist'), findsOneWidget);
+    expect(find.text('decided'), findsOneWidget);
     expect(find.textContaining('demo engine'), findsWidgets);
     expect(talk.lines, isNotEmpty);
     expect(talk.speakers.length, 2);
@@ -140,20 +140,24 @@ void main() {
     expect(talk.summary!.decisions.single.text, contains('launch moves to Thursday'));
     expect(s.ledger.total(AppLedger.talks), 1);
 
-    // Tick the first to-do.
+    // Tick the first to-do, on the to-dos part of the talk.
     final first = talk.summary!.todos.first;
+    await tester.tap(find.widgetWithText(ChoicePill, 'to-dos 2'));
+    await settle(tester);
     await scrollTo(tester, find.text(first.what));
     await tester.tap(find.bySemanticsLabel('to do: ${first.what}'));
     await settle(tester);
     expect(data.talk(talk.id)!.summary!.todos.first.done, isTrue);
 
     // Name speaker 1 as a new person.
-    final voice = find.widgetWithText(Door, 'speaker 1');
+    await tester.tap(find.text('summary'));
+    await settle(tester);
+    final voice = find.text('speaker 1').first;
     await scrollTo(tester, voice);
     await tester.tap(voice);
     await settle(tester);
     await tester.enterText(find.byType(TextField).last, 'Priya');
-    await tester.tap(find.widgetWithText(InkButton, 'save'));
+    await tester.tap(find.widgetWithText(InkButton, "that's them"));
     await settle(tester);
     expect(data.people.single.name, 'Priya');
     expect(find.text('Priya'), findsWidgets);
@@ -173,13 +177,13 @@ void main() {
     // Today's brief shows the talk.
     await tester.tap(find.text('today'));
     await settle(tester);
-    expect(find.text('your brief'), findsOneWidget);
+    expect(find.text('new notes'), findsOneWidget);
     expect(find.text(talk.title), findsWidgets);
   });
 
   testWidgets('record a talk with the microphone stand-in', (tester) async {
     final s = await boot(tester);
-    await tester.tap(find.widgetWithText(InkButton, 'record a talk'));
+    await tester.tap(find.widgetWithText(InkButton, 'record'));
     await settle(tester);
     expect(find.text('recording'), findsWidgets);
     await tester.tap(find.widgetWithText(InkButton, 'stop and write the notes'));
@@ -187,7 +191,7 @@ void main() {
     final talk = BurrowData.forServices(s).talks.single;
     expect(talk.imported, isFalse);
     expect(talk.status, TalkStatus.ready, reason: talk.error);
-    expect(find.text('the gist'), findsOneWidget);
+    expect(find.text('decided'), findsOneWidget);
   });
 
   testWidgets('ask Burrow looks things up with its tools and cites the talk', (tester) async {
@@ -205,10 +209,11 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'when is the launch?');
     await tester.tap(find.widgetWithText(InkButton, 'ask'));
     await settle(tester, 20);
-    expect(find.text('what Burrow did'), findsOneWidget);
-    expect(find.text('search talks'), findsOneWidget);
-    expect(find.text('answer'), findsOneWidget);
     expect(find.textContaining('Demo engine, no model'), findsOneWidget);
+    await scrollTo(tester, find.text('1 step'));
+    await tester.tap(find.text('1 step'));
+    await settle(tester);
+    expect(find.text('search talks'), findsOneWidget);
     await scrollTo(tester, find.text('from'));
     expect(find.text(data.talks.single.title), findsWidgets);
     expect(s.ledger.total(AppLedger.questions), 1);
@@ -227,16 +232,16 @@ void main() {
     await tester.tap(find.widgetWithText(InkButton, 'mask'));
     await settle(tester);
     expect(find.text('Write to [EMAIL_1] or call [PHONE_1].'), findsOneWidget);
-    await scrollTo(tester, find.text('copy masked text'));
-    await tester.tap(find.text('copy masked text'));
+    await tester.tap(find.widgetWithText(InkButton, 'copy masked text'));
     await settle(tester);
     expect(clipboard, 'Write to [EMAIL_1] or call [PHONE_1].');
-    await scrollTo(tester, find.text('put the details back'));
     await tester.enterText(find.byType(TextField).last, 'Sure, I emailed [EMAIL_1].');
-    await tester.tap(find.text('put the details back'));
+    await tester.tap(find.widgetWithText(InkButton, 'put the details back'));
     await settle(tester);
-    await scrollTo(tester, find.text('Sure, I emailed bob@acme.com.'));
     expect(find.text('Sure, I emailed bob@acme.com.'), findsOneWidget);
+    await tester.tap(find.widgetWithText(InkButton, 'copy the reply'));
+    await settle(tester);
+    expect(clipboard, 'Sure, I emailed bob@acme.com.');
     expect(s.ledger.total(AppLedger.masked), 1);
   });
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../data/burrow_data.dart';
 import '../data/models.dart';
+import '../widgets/type_roles.dart';
 import 'person_page.dart';
 import 'talk_page.dart';
 
@@ -26,7 +27,14 @@ class _PeoplePageState extends State<PeoplePage> {
         final open = data.person(_open);
         return TwoPane(
           list: _list(context, data),
-          detail: open == null ? null : PersonPage(key: ValueKey(open.id), personId: open.id, embedded: true),
+          detail: open == null
+              ? const HandPage(
+                  children: [
+                    SizedBox(height: 40),
+                    HandEmpty(title: 'pick someone', body: 'Their talks and to-dos open here.', doodle: Doodle.person),
+                  ],
+                )
+              : PersonPage(key: ValueKey(open.id), personId: open.id, embedded: true),
         );
       },
     );
@@ -45,17 +53,19 @@ class _PeoplePageState extends State<PeoplePage> {
           doodle: Doodle.people,
         ),
         if (voices.isNotEmpty) ...[
-          SectionHead('voices to name', note: '${voices.length} from the last two weeks'),
+          const SectionHead('voices to name'),
+          Meta('${voices.length} from the last two weeks.'),
           for (final (t, sp) in voices.take(6))
-            Door(
-              'speaker ${sp.index + 1}',
-              mark: voices.first == (t, sp) ? 'speaker' : null,
-              meta: 'in ${t.title}',
-              leading: const DoodleIcon(Doodle.wave, size: 26),
+            ContentRow(
+              'Speaker ${sp.index + 1}',
+              meta: 'In ${t.title}, ${(sp.talkSec / 60).ceil()} min of talking',
+              leading: const DoodleIcon(Doodle.wave, size: 24),
               onTap: () => nameVoice(context, data, t, sp.index),
             ),
           const HandDivider(seed: 2),
         ],
+        Align(alignment: Alignment.centerLeft, child: HandLink('add someone', onPressed: () => _add(context, data))),
+        const SizedBox(height: 8),
         if (people.isEmpty)
           const HandEmpty(
             title: 'no one yet',
@@ -63,17 +73,36 @@ class _PeoplePageState extends State<PeoplePage> {
             doodle: Doodle.person,
           )
         else ...[
-          SectionHead('named', note: '${people.length}'),
           for (final p in people)
-            Door(
+            ContentRow(
               p.isMe ? '${p.name} (you)' : p.name,
               meta: _meta(data, p),
-              leading: const DoodleIcon(Doodle.person, size: 26),
+              selected: context.isWide && p.id == _open,
               onTap: () => context.isWide ? setState(() => _open = p.id) : pushPage(context, PersonPage(personId: p.id)),
             ),
         ],
       ],
     );
+  }
+
+  Future<void> _add(BuildContext context, BurrowData data) async {
+    final controller = TextEditingController();
+    final name = await showHandSheet<String>(
+      context,
+      builder: (context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('add someone', style: context.type.title),
+          const SizedBox(height: 8),
+          const Meta('Then name their voice in a talk, and their to-dos gather on their page.'),
+          const SizedBox(height: 14),
+          HandField(controller: controller, singleLine: true, autofocus: true, placeholder: 'Their name', leading: Doodle.person),
+          const SizedBox(height: 14),
+          InkButton('add', onPressed: () => Navigator.pop(context, controller.text)),
+        ],
+      ),
+    );
+    if (name != null && name.trim().isNotEmpty) await data.personNamed(name);
   }
 
   static String _meta(BurrowData data, Person p) {

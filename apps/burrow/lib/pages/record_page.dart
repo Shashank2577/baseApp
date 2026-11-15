@@ -150,9 +150,7 @@ class _RecordPageState extends State<RecordPage> {
             ),
           ] else ...[
             const SizedBox(height: 24),
-            Center(
-              child: MarkedText(_time, mark: _state == _State.recording ? _time : null, style: context.type.display),
-            ),
+            Center(child: Text(_time, style: context.type.display)),
             const SizedBox(height: 8),
             Center(child: Meta(_state == _State.paused ? 'paused' : (_state == _State.recording ? 'recording' : 'starting'))),
             const SizedBox(height: 24),
@@ -167,7 +165,7 @@ class _RecordPageState extends State<RecordPage> {
             ),
             const SizedBox(height: 16),
             Meta(
-              'Keep Burrow open while you record: phones may stop apps in the background.',
+              'On iPhone and Mac the recording goes on with the screen locked or Burrow in the background. On Android, keep Burrow open.',
               color: c.pencil,
               textAlign: TextAlign.center,
             ),

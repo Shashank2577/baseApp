@@ -166,8 +166,11 @@ class TalkProcessor {
     if (!_running.add(t.id)) return;
     try {
       await KeepAwake.during('talk-${t.id}', 'writing a summary', () async {
+        final ticked = {for (final x in t.todos.where((x) => x.done)) x.what.toLowerCase()};
         await _step(t, processingSteps[5]);
-        t.summary = await summarize(t);
+        final s = await summarize(t);
+        // Ticks survive a rewrite when the to-do is still there.
+        t.summary = s.copyWith(todos: [for (final x in s.todos) ticked.contains(x.what.toLowerCase()) ? x.ticked(true) : x]);
         t
           ..status = TalkStatus.ready
           ..step = null;
