@@ -61,17 +61,18 @@ void main() {
       await settle(tester);
     }
     expect(find.text('answer'), findsOneWidget);
+    expect(find.textContaining('**'), findsNothing, reason: 'the answer is rendered as prose, not raw markdown');
 
-    // Settings: switch to dark and to the handwritten voice.
+    // Settings: switch to dark and to the neat hand.
     await tester.tap(find.byTooltip('settings').first);
     await settle(tester);
     await tester.tap(find.text('dark'));
     await settle(tester);
-    await tester.scrollUntilVisible(find.text('all handwritten'), 200, scrollable: find.byType(Scrollable).last);
-    await tester.tap(find.text('all handwritten'));
+    await tester.scrollUntilVisible(find.text('neat hand'), 200, scrollable: find.byType(Scrollable).last);
+    await tester.tap(find.text('neat hand'));
     await settle(tester);
     expect(s.settings.themeMode, ThemeMode.dark);
-    expect(s.settings.voiceId, 'handwritten');
+    expect(s.settings.voiceId, 'neat');
 
     // Models page lists what this app uses.
     await tester.scrollUntilVisible(find.text('models'), 200, scrollable: find.byType(Scrollable).last);
@@ -86,5 +87,26 @@ void main() {
     await tester.tap(find.text('save token'));
     await settle(tester);
     expect(s.settings.hfToken, 'hf_test');
+  });
+
+  testWidgets('wide: from 1000 the nav words are a rail with the wordmark, gear and padlock', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    late BaseServices s;
+    await tester.runAsync(() async {
+      s = await services();
+      await s.settings.update((x) => x.onboarded = true);
+    });
+    await tester.pumpWidget(BaseApp(config: appConfig, services: Future.value(s)));
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+    expect(find.byType(HandNav), findsOneWidget);
+    expect(tester.getSize(find.byType(HandNav)).width, SpaceTokens.railWidth);
+    expect(find.text('starter.'), findsOneWidget, reason: 'the wordmark moves to the rail');
+    expect(find.byTooltip('settings'), findsOneWidget, reason: 'the gear moves to the rail, once');
+    await tester.tap(find.text('design'));
+    await settle(tester);
+    expect(find.text('the one ink button'), findsOneWidget);
   });
 }

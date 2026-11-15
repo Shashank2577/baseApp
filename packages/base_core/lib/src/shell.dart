@@ -95,7 +95,8 @@ class _BaseAppState extends State<BaseApp> {
   );
 }
 
-/// The words along the bottom and one page per word.
+/// The words along the bottom (or, from `railBreakpoint` wide, down a rail
+/// on the left) and one page per word.
 class BaseShell extends StatefulWidget {
   const BaseShell({super.key});
 
@@ -108,8 +109,15 @@ class _BaseShellState extends State<BaseShell> {
 
   @override
   Widget build(BuildContext context) {
-    final tabs = BaseScope.of(context).config.tabs;
+    final config = BaseScope.of(context).config;
+    final tabs = config.tabs;
     final c = context.colors;
+    final rail = tabs.length >= 2 && context.isRailWide;
+    final pages = IndexedStack(
+      index: _tab,
+      children: [for (final t in tabs) Builder(builder: t.builder)],
+    );
+    void select(int i) => setState(() => _tab = i);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       // Status-bar icons follow the app's light/dark choice, not the phone's.
       value: (c.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
@@ -118,24 +126,41 @@ class _BaseShellState extends State<BaseShell> {
       ),
       child: Scaffold(
         backgroundColor: c.paper,
-        body: IndexedStack(
-          index: _tab,
-          children: [for (final t in tabs) Builder(builder: t.builder)],
-        ),
-        bottomNavigationBar: tabs.length < 2
+        body: rail
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  HandNav.rail(
+                    words: [for (final t in tabs) t.word],
+                    selected: _tab,
+                    onSelect: select,
+                    wordmark: config.wordmark ?? config.name,
+                    footer: const [ShellActions(inRail: true)],
+                  ),
+                  Expanded(child: HandLayout(rail: true, start: true, child: pages)),
+                ],
+              )
+            : pages,
+        bottomNavigationBar: tabs.length < 2 || rail
             ? null
-            : HandNav(words: [for (final t in tabs) t.word], selected: _tab, onSelect: (i) => setState(() => _tab = i)),
+            : HandNav(words: [for (final t in tabs) t.word], selected: _tab, onSelect: select),
       ),
     );
   }
 }
 
 /// The gear (settings) and padlock (privacy) every home page has top-right.
+/// With the rail they move to its foot, so a page's own copy draws nothing.
 class ShellActions extends StatelessWidget {
-  const ShellActions({super.key});
+  const ShellActions({super.key, this.inRail = false});
+
+  /// The copy drawn by the rail itself.
+  final bool inRail;
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) => !inRail && HandLayout.maybeOf(context)?.rail == true
+      ? const SizedBox.shrink()
+      : Row(
     mainAxisSize: MainAxisSize.min,
     children: [
       DoodleButton(Doodle.gear, label: 'settings', onPressed: () => pushPage(context, const SettingsPage())),

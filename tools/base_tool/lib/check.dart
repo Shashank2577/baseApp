@@ -29,7 +29,20 @@ final _appRules = <(RegExp, String)>[
   (RegExp(r'huggingface\.co|HttpClient\(|package:http/'), 'network or model download in app code; use SharedModelStore (base_models)'),
   (RegExp(r'getApplicationSupportDirectory|getApplicationDocumentsDirectory'), 'own storage paths; use JsonStore (base_core) or SharedModelStore'),
   (RegExp(r'\bElevatedButton\b|\bFloatingActionButton\b|\bCard\('), 'Material widget outside the design system; use InkButton/PillButton/Door'),
+  (RegExp(r'\bfontSize:'), 'hard-coded font size; use a named style from context.type (sizes live only in design/tokens.json)'),
+  (
+    RegExp(r'graphite.*\b(Text|Meta|Body|style)\b|\b(Text|Meta|Body|style)\b.*graphite'),
+    'graphite text; graphite is for placeholders and disabled things only, use pencil for meta (mark a real disabled state with `base-check: ignore`)',
+  ),
 ];
+
+/// The app-code rules [line] breaks (none when it carries `base-check: ignore`).
+List<String> lintAppLine(String line) => line.contains('base-check: ignore')
+    ? const []
+    : [
+        for (final (re, why) in _appRules)
+          if (re.hasMatch(line)) why,
+      ];
 
 List<Finding> runCheck(Workspace ws) {
   final out = <Finding>[];
@@ -96,9 +109,8 @@ List<Finding> _checkApp(Workspace ws, Directory app, Set<String> members) {
       final lines = f.readAsLinesSync();
       for (var i = 0; i < lines.length; i++) {
         final line = lines[i];
-        if (line.contains('base-check: ignore')) continue;
-        for (final (re, why) in _appRules) {
-          if (re.hasMatch(line)) out.add(Finding(true, '${p.relative(f.path, from: ws.root)}:${i + 1}', why));
+        for (final why in lintAppLine(line)) {
+          out.add(Finding(true, '${p.relative(f.path, from: ws.root)}:${i + 1}', why));
         }
       }
     }

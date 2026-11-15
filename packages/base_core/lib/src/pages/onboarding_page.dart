@@ -37,16 +37,21 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _welcome(BaseServices s, List<String> needs) => HandPage(
     bottom: InkButton("let's start", trailing: Doodle.arrow, onPressed: () => setState(() => _step = needs.isEmpty ? 2 : 1)),
     children: [
-      const SizedBox(height: 40),
+      const SizedBox(height: SpaceTokens.l),
       DoodleIcon(s.config.welcomeDoodle, size: 56, tilt: -8),
-      const SizedBox(height: 16),
+      const SizedBox(height: SpaceTokens.m),
       Text(s.config.wordmark ?? s.config.name, style: context.type.display),
-      const SizedBox(height: 12),
-      MarkedText(s.config.tagline, mark: s.config.welcomeMark, style: context.type.title),
-      const SizedBox(height: 24),
-      Steps([if (needs.isNotEmpty) 'get the AI models (once per device)', 'decide whether it may ever go online', 'start']),
-      const SizedBox(height: 16),
-      const OnDeviceStamp(text: 'everything runs on this device'),
+      const SizedBox(height: SpaceTokens.sm),
+      MarkedText(s.config.tagline, mark: s.config.welcomeMark, style: context.type.reading),
+      const SizedBox(height: SpaceTokens.l),
+      const ItemRow('Everything runs on this device', meta: 'No account, no analytics and no upload code.', doodle: Doodle.lock),
+      if (needs.isNotEmpty)
+        ItemRow(
+          'AI models, downloaded once',
+          meta: 'Shared with your other ${PlatformConfig.vendorName} apps, so each one is fetched once per device.',
+          doodle: Doodle.spark,
+        ),
+      const ItemRow('You decide if it goes online', meta: 'Once the models are here, it can stay offline for good.', doodle: Doodle.cloudOff),
     ],
   );
 
@@ -88,11 +93,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
           title: 'the models',
           purpose:
               '${s.config.name} uses these on-device AI models. Any that another ${PlatformConfig.vendorName} app already downloaded are reused, not downloaded again.',
-          mark: 'models',
           doodle: Doodle.spark,
         ),
         for (final id in needs) _NeedRow(spec: store.spec(id), state: store.stateOf(id)),
-        if (_error != null) Meta(_error!, color: context.colors.redPen),
+        if (_error != null) _Problem(_error!),
       ],
     );
   }
@@ -128,24 +132,23 @@ class _OnboardingPageState extends State<OnboardingPage> {
         },
       ),
       children: [
-        const SizedBox(height: 24),
+        const SizedBox(height: SpaceTokens.l),
         MarkedText('nothing leaves this device.', mark: 'nothing', style: context.type.headline),
-        const SizedBox(height: 8),
+        const SizedBox(height: SpaceTokens.s),
         Body(
           'The only thing ${s.config.name} ever fetches is AI models. There is no account and no analytics. You can check it any time behind the padlock.',
-          color: context.colors.pencil,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: SpaceTokens.l),
         if (ready)
           SwitchRow(
-            title: 'then never go online',
+            title: 'never go online',
             body: 'Turn it off later if you want a new model.',
             doodle: Doodle.cloudOff,
             value: _neverOnline,
             onChanged: (v) => setState(() => _neverOnline = v),
           )
         else
-          const Meta('Some models are not here yet, so the app will ask before fetching them.'),
+          const Body('Some models are not here yet, so the app will ask before fetching them.'),
       ],
     );
   }
@@ -159,22 +162,32 @@ class _NeedRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shared = state.isReady && state.users.isNotEmpty;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text(spec.name, style: context.type.door.copyWith(fontSize: 24))),
-              if (state.isReady) const DoodleIcon(Doodle.tick, size: 22),
-            ],
-          ),
-          Meta(state.isReady ? (shared ? 'already on this device · shared' : 'ready') : '${formatBytes(spec.bytes)} · ${spec.summary}'),
-          if (state.status == ModelStatus.downloading) HandProgress(fraction: state.busyElsewhere ? null : state.progress),
-          if (state.status == ModelStatus.failed && state.error != null) Meta(state.error!, color: context.colors.redPen),
-        ],
-      ),
+    return ItemRow(
+      spec.name,
+      aside: state.isReady ? null : formatBytes(spec.bytes),
+      meta: state.isReady ? (shared ? 'Already on this device, shared with your other apps.' : 'Ready.') : spec.summary,
+      trailing: state.isReady ? const DoodleIcon(Doodle.tick, size: SizeTokens.iconSmall) : null,
+      below: switch (state.status) {
+        ModelStatus.downloading => HandProgress(fraction: state.busyElsewhere ? null : state.progress),
+        ModelStatus.failed when state.error != null => _Problem(state.error!),
+        _ => null,
+      },
     );
   }
+}
+
+/// A problem: an ink sentence with a red "!" in front.
+class _Problem extends StatelessWidget {
+  const _Problem(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      DoodleIcon(Doodle.exclaim, size: SizeTokens.iconSmall, color: context.colors.redPen, stroke: 2.6),
+      const SizedBox(width: SpaceTokens.xs),
+      Expanded(child: Text(text, style: context.type.meta.copyWith(color: context.colors.ink))),
+    ],
+  );
 }

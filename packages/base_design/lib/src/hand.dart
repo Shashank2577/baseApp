@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter/rendering.dart';
 
 import 'generated/tokens.g.dart';
 import 'theme.dart';
@@ -259,8 +260,14 @@ class _HandProgressState extends State<HandProgress> with SingleTickerProviderSt
 
 /// Text with the marker swipe behind the first case-insensitive match of
 /// [mark]. The swipe follows the words across line wraps.
-class MarkedText extends StatelessWidget {
-  const MarkedText(this.text, {super.key, this.mark, this.style, this.color, this.textAlign = TextAlign.start, this.maxLines});
+///
+/// One marker per screen, on a fact: a number or one or two words, at most
+/// [maxMarked] characters. Never a whole title, a tag row or a sentence.
+class MarkedText extends StatefulWidget {
+  const MarkedText(this.text, {super.key, this.mark, this.style, this.color, this.textAlign = TextAlign.start, this.maxLines})
+    : assert(mark == null || mark.length <= maxMarked, 'The marker goes behind a fact of at most 16 characters, not a phrase.');
+
+  static const maxMarked = 16;
 
   final String text;
   final String? mark;
@@ -270,10 +277,19 @@ class MarkedText extends StatelessWidget {
   final int? maxLines;
 
   @override
+  State<MarkedText> createState() => _MarkedTextState();
+}
+
+class _MarkedTextState extends State<MarkedText> {
+  final _text = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final base = (style ?? context.type.title).copyWith(color: color ?? style?.color ?? c.ink);
-    final at = mark == null || mark!.isEmpty ? -1 : text.toLowerCase().indexOf(mark!.toLowerCase());
+    final mark = widget.mark;
+    final text = widget.text;
+    final base = (widget.style ?? context.type.title).copyWith(color: widget.color ?? widget.style?.color ?? c.ink);
+    final at = mark == null || mark.isEmpty ? -1 : text.toLowerCase().indexOf(mark.toLowerCase());
     final span = at < 0
         ? TextSpan(text: text, style: base)
         : TextSpan(
@@ -284,51 +300,40 @@ class MarkedText extends StatelessWidget {
                 text: text.substring(at, at + mark!.length),
                 style: TextStyle(color: c.markerInk),
               ),
-              TextSpan(text: text.substring(at + mark!.length)),
+              TextSpan(text: text.substring(at + mark.length)),
             ],
           );
-    final textScaler = MediaQuery.textScalerOf(context);
-    final rendered = Text.rich(span, textAlign: textAlign, maxLines: maxLines, overflow: maxLines == null ? null : TextOverflow.ellipsis);
-    if (at < 0) return rendered;
-    return LayoutBuilder(
-      builder: (context, box) {
-        // Lay the text out the same way the Text below will, to find where the
-        // marked words fall on each line.
-        final tp = TextPainter(
-          text: span,
-          textAlign: textAlign,
-          textDirection: Directionality.of(context),
-          textScaler: textScaler,
-          maxLines: maxLines,
-          ellipsis: maxLines == null ? null : '\u2026',
-        )..layout(maxWidth: box.maxWidth.isFinite ? box.maxWidth : double.infinity);
-        final boxes = tp.getBoxesForSelection(TextSelection(baseOffset: at, extentOffset: at + mark!.length));
-        tp.dispose();
-        return CustomPaint(painter: _MarkedPainter(boxes, c.marker), child: rendered);
-      },
+    final rendered = Text.rich(
+      span,
+      key: _text,
+      textAlign: widget.textAlign,
+      maxLines: widget.maxLines,
+      overflow: widget.maxLines == null ? null : TextOverflow.ellipsis,
     );
+    if (at < 0) return rendered;
+    // The swipe is measured on the paragraph as laid out, so it lines up with
+    // the words in any font, at any text scale, across line wraps.
+    return CustomPaint(painter: _MarkedPainter(_text, TextSelection(baseOffset: at, extentOffset: at + mark!.length), c.marker), child: rendered);
   }
 }
 
 class _MarkedPainter extends CustomPainter {
-  _MarkedPainter(this.boxes, this.color);
-  final List<TextBox> boxes;
+  _MarkedPainter(this.text, this.selection, this.color);
+  final GlobalKey text;
+  final TextSelection selection;
   final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final paragraph = text.currentContext?.findRenderObject();
+    if (paragraph is! RenderParagraph || !paragraph.hasSize) return;
+    final boxes = paragraph.getBoxesForSelection(selection);
     for (var line = 0; line < boxes.length; line++) {
       canvas.drawPath(swipePath(boxes[line].toRect(), line + 11), Paint()..color = color);
     }
   }
 
+  // Cheap to repaint, and the text may have been laid out again.
   @override
-  bool shouldRepaint(_MarkedPainter old) => old.color != color || old.boxes.length != boxes.length || !_same(old.boxes, boxes);
-
-  static bool _same(List<TextBox> a, List<TextBox> b) {
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
+  bool shouldRepaint(_MarkedPainter old) => true;
 }

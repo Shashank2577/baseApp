@@ -66,7 +66,19 @@ Map<String, int> _palette(Map tokens, String mode) => {
   for (final e in ((tokens['color'] as Map)[mode] as Map).entries) e.key as String: argb((e.value as Map)['value'] as String),
 };
 
-List<int> _series(Map tokens) => [for (final c in (tokens['color'] as Map)['series'] as List) argb(c as String)];
+/// Chart and person colours: `series` on light paper, `seriesDark` on dark paper
+/// (falls back to `series` for token files that have no dark set).
+List<int> _series(Map tokens, [String mode = 'light']) {
+  final color = tokens['color'] as Map;
+  final list = (mode == 'dark' ? color['seriesDark'] : null) ?? color['series'];
+  return [for (final c in list as List) argb(c as String)];
+}
+
+/// The monospace family and the fonts to try when the platform has no alias for it.
+(String, List<String>) _mono(Map tokens) {
+  final m = (tokens['font'] as Map)['mono'] as Map?;
+  return ((m?['family'] as String?) ?? 'monospace', [for (final f in (m?['fallback'] as List?) ?? const []) f as String]);
+}
 
 String _num(Object? n) {
   if (n == null) return 'null';
@@ -96,8 +108,11 @@ String dartTokens(Map t) {
     b.writeln('}\n');
   }
   b
-    ..writeln('/// Muted pencil-box tones for charts and legends. Same in light and dark.')
+    ..writeln('/// Muted pencil-box tones for charts, legends and people, on light paper.')
     ..writeln('const seriesTokens = <Color>[${_series(t).map((v) => 'Color(${_hex8(v)})').join(', ')}];')
+    ..writeln()
+    ..writeln('/// The same tones lifted for dark paper (each at least 6:1 on it).')
+    ..writeln('const seriesDarkTokens = <Color>[${_series(t, 'dark').map((v) => 'Color(${_hex8(v)})').join(', ')}];')
     ..writeln();
   void doubles(String cls, String key) {
     b.writeln('abstract final class $cls {');
@@ -106,6 +121,7 @@ String dartTokens(Map t) {
   }
 
   doubles('SpaceTokens', 'space');
+  if (t['size'] != null) doubles('SizeTokens', 'size');
   doubles('RadiusTokens', 'radius');
   doubles('StrokeTokens', 'stroke');
   doubles('AlphaTokens', 'alpha');
@@ -136,8 +152,11 @@ String dartTokens(Map t) {
   }
 
   final font = t['font'] as Map;
+  final (monoFamily, monoFallback) = _mono(t);
   b
     ..writeln('const handFontFamily = ${_q(font['hand'] as String)};')
+    ..writeln('const monoFontFamily = ${_q(monoFamily)};')
+    ..writeln('const monoFontFallback = <String>[${monoFallback.map(_q).join(', ')}];')
     ..writeln()
     ..writeln('class VoiceToken {')
     ..writeln('  const VoiceToken(this.id, this.label, this.note, this.family, this.informality, this.scale);')
@@ -263,8 +282,8 @@ String cssTokens(Map t) {
   for (var i = 0; i < series.length; i++) {
     b.writeln('  --base-series-$i: ${_css(series[i])};');
   }
-  for (final group in ['space', 'radius', 'stroke']) {
-    (t[group] as Map).forEach((k, v) => b.writeln('  --base-$group-${_kebab(k as String)}: ${v}px;'));
+  for (final group in ['space', 'size', 'radius', 'stroke']) {
+    ((t[group] as Map?) ?? const {}).forEach((k, v) => b.writeln('  --base-$group-${_kebab(k as String)}: ${v}px;'));
   }
   (t['motion'] as Map).forEach((k, v) => b.writeln('  --base-motion-${_kebab(k as String)}: ${v}ms;'));
   for (final group in ['hand', 'body']) {
@@ -276,16 +295,28 @@ String cssTokens(Map t) {
         ..writeln('  --base-type-${_kebab(k)}-weight: ${m['weight']};');
     });
   }
+  final (monoFamily, monoFallback) = _mono(t);
+  String family(String f) => f == 'monospace' ? f : "'$f'";
   b
     ..writeln("  --base-font-hand: '${(t['font'] as Map)['hand']}', cursive;")
+    ..writeln('  --base-font-mono: ${[...monoFallback.map(family), family(monoFamily)].join(', ')};')
     ..writeln('}')
     ..writeln(':root[data-theme="dark"] {');
   vars('dark');
+  final seriesDark = _series(t, 'dark');
+  void darkSeries(String indent) {
+    for (var i = 0; i < seriesDark.length; i++) {
+      b.writeln('$indent--base-series-$i: ${_css(seriesDark[i])};');
+    }
+  }
+
+  darkSeries('  ');
   b
     ..writeln('}')
     ..writeln('@media (prefers-color-scheme: dark) {')
     ..writeln('  :root:not([data-theme="light"]) {');
   _palette(t, 'dark').forEach((k, v) => b.writeln('    --base-${_kebab(k)}: ${_css(v)};'));
+  darkSeries('    ');
   b
     ..writeln('  }')
     ..writeln('}');
@@ -310,12 +341,22 @@ String kotlinTokens(Map t) {
     _palette(t, mode).forEach((k, v) => b.writeln('        val $k = Color(${_hex8(v)})'));
     b.writeln('    }');
   }
-  b.writeln('    val series = listOf(${_series(t).map((v) => 'Color(${_hex8(v)})').join(', ')})');
-  for (final group in ['space', 'radius', 'stroke']) {
+  b
+    ..writeln('    val series = listOf(${_series(t).map((v) => 'Color(${_hex8(v)})').join(', ')})')
+    ..writeln('    val seriesDark = listOf(${_series(t, 'dark').map((v) => 'Color(${_hex8(v)})').join(', ')})');
+  for (final group in ['space', 'size', 'radius', 'stroke']) {
+    if (t[group] == null) continue;
     b.writeln('    object ${group[0].toUpperCase()}${group.substring(1)} {');
     (t[group] as Map).forEach((k, v) => b.writeln('        val $k = ${_num(v)}.dp'));
     b.writeln('    }');
   }
+  final (monoFamily, monoFallback) = _mono(t);
+  b
+    ..writeln('    object Font {')
+    ..writeln('        const val HAND = "${(t['font'] as Map)['hand']}"')
+    ..writeln('        const val MONO = "$monoFamily"')
+    ..writeln('        val monoFallback = listOf(${monoFallback.map((f) => '"$f"').join(', ')})')
+    ..writeln('    }');
   b.writeln('    object Motion {');
   (t['motion'] as Map).forEach((k, v) => b.writeln('        const val $k = $v'));
   b.writeln('    }');
@@ -350,10 +391,18 @@ String swiftTokens(Map t) {
     _palette(t, mode).forEach((k, v) => b.writeln('        public static let $k = ${color(v)}'));
     b.writeln('    }');
   }
-  b.writeln('    public enum Space {');
-  (t['space'] as Map).forEach((k, v) => b.writeln('        public static let $k: CGFloat = ${_num(v)}'));
+  b.writeln('    public static let series = [${_series(t).map(color).join(', ')}]');
+  b.writeln('    public static let seriesDark = [${_series(t, 'dark').map(color).join(', ')}]');
+  for (final group in ['space', 'size']) {
+    if (t[group] == null) continue;
+    b.writeln('    public enum ${group[0].toUpperCase()}${group.substring(1)} {');
+    (t[group] as Map).forEach((k, v) => b.writeln('        public static let $k: CGFloat = ${_num(v)}'));
+    b.writeln('    }');
+  }
+  final (monoFamily, monoFallback) = _mono(t);
   b
-    ..writeln('    }')
+    ..writeln('    public static let monoFont = "$monoFamily"')
+    ..writeln('    public static let monoFallback = [${monoFallback.map((f) => '"$f"').join(', ')}]')
     ..writeln('}');
   return b.toString();
 }

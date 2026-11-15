@@ -22,28 +22,35 @@ class PrivacyPage extends StatelessWidget {
         final today = s.ledger.summary(entries);
         final total = s.ledger.summary(entries, totals: true);
         final c = context.colors;
+        Widget ledgerLine(String text, Doodle doodle) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: SpaceTokens.xs),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: DoodleIcon(doodle, size: SizeTokens.iconSmall, color: c.pencil),
+              ),
+              const SizedBox(width: SpaceTokens.sm),
+              Expanded(child: Body(_sentence(text))),
+            ],
+          ),
+        );
         return HandPage(
           onBack: () => Navigator.pop(context),
           children: [
-            MarkedText(
-              'nothing of yours left this device.',
-              mark: 'nothing',
-              style: context.type.headline.copyWith(fontSize: 42, height: 44 / 42),
-            ),
-            const SizedBox(height: 8),
+            MarkedText('nothing of yours left this device.', mark: 'nothing', style: context.type.headline),
+            const SizedBox(height: SpaceTokens.s),
             Body(
               '${formatBytes(s.ledger.bytesDownloaded)} downloaded, all of it AI models. ${s.config.name} has no account, no analytics and no upload code.',
-              color: c.pencil,
             ),
-            const SizedBox(height: 16),
             const SectionHead('today'),
-            if (today.isEmpty) const Meta('nothing yet today'),
-            for (final line in today) Body(line),
-            const SizedBox(height: 8),
+            if (today.isEmpty) const Meta('Nothing yet today.'),
+            for (final line in today) ledgerLine(line, Doodle.tick),
             SectionHead('since you set ${s.config.name} up'),
-            if (total.isEmpty) const Meta('nothing yet'),
-            for (final line in total) Body(line),
-            const SizedBox(height: 16),
+            if (total.isEmpty) const Meta('Nothing yet.'),
+            for (final line in total) ledgerLine(line, Doodle.tick),
+            const SectionHead('switches'),
             SwitchRow(
               title: 'never go online',
               body: 'Models you have stay usable. Nothing new is downloaded until you turn this off.',
@@ -51,22 +58,12 @@ class PrivacyPage extends StatelessWidget {
               value: s.settings.neverOnline,
               onChanged: (v) => s.settings.update((x) => x.neverOnline = v),
             ),
-            Door('models', meta: 'what is on this device, and who shares it', onTap: () => pushPage(context, const ModelsPage())),
+            Door('models', meta: 'What is on this device, and who shares it', onTap: () => pushPage(context, const ModelsPage())),
             if (s.ledger.events.isNotEmpty) ...[
               const SectionHead('recently'),
-              for (final e in s.ledger.events.take(8))
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      DoodleIcon(e.network ? Doodle.arrow : Doodle.tick, size: 16, color: c.pencil),
-                      const SizedBox(width: 8),
-                      Expanded(child: Meta(e.detail)),
-                    ],
-                  ),
-                ),
+              for (final e in s.ledger.events.take(8)) ledgerLine(e.detail, e.network ? Doodle.arrow : Doodle.tick),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: SpaceTokens.xl),
             Center(
               child: HandLink(
                 'wipe everything',
@@ -93,3 +90,5 @@ class PrivacyPage extends StatelessWidget {
     );
   }
 }
+
+String _sentence(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);

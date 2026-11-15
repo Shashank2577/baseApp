@@ -43,7 +43,7 @@ cd tools/base_tool && dart test && cd -
 ./base check               # must be 0 errors
 ```
 
-For anything visual, also look at the starter's **design** tab in light and dark with the "all handwritten" voice (the widest), at 360 wide. Add the case to `packages/base_design/test/design_test.dart` (the catalogue test fails on overflow).
+For anything visual, also look at the starter's **design** tab in light and dark with the "neat hand" voice (the widest), at 360 wide. Add the case to `packages/base_design/test/design_test.dart` (the catalogue test fails on overflow).
 
 A change to a package's public API: update every app in `apps/` in the same change. `flutter analyze` at the root lists every call site.
 

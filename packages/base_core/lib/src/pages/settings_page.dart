@@ -22,11 +22,18 @@ class SettingsPage extends StatelessWidget {
           onBack: () => Navigator.pop(context),
           children: [
             PageIntro(title: 'settings', purpose: 'How ${s.config.name} looks and reads. Saved on this device.', doodle: Doodle.gear),
-            const SectionHead('light or dark'),
-            const SizedBox(height: 8),
+            if (settings.typeNotice) ...[
+              DoneNote(
+                'Reading text is now a plain font. Change it under handwriting.',
+                action: 'ok',
+                onAction: () => settings.update((x) => x.typeNotice = false),
+              ),
+              const SizedBox(height: SpaceTokens.s),
+            ],
+            const SectionHead('light or dark', first: true),
             Wrap(
-              spacing: 10,
-              runSpacing: 10,
+              spacing: SpaceTokens.s,
+              runSpacing: SpaceTokens.s,
               children: [
                 for (final (mode, label, doodle) in [
                   (ThemeMode.system, 'like the device', Doodle.phone),
@@ -41,15 +48,14 @@ class SettingsPage extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 16),
-            const SectionHead('handwriting', note: 'headlines stay hand-lettered'),
+            const SectionHead('handwriting', note: 'The face you read in. Headlines and buttons stay hand-lettered.'),
             for (final v in Voice.all) _VoiceRow(voice: v, selected: settings.voiceId == v.id),
-            const SizedBox(height: 16),
-            Door('models', meta: 'on-device AI, shared between apps', onTap: () => pushPage(context, const ModelsPage())),
-            Door('privacy', meta: 'what this app did, and switches', onTap: () => pushPage(context, const PrivacyPage())),
-            Door('logs', meta: 'each step, to copy when something fails', onTap: () => pushPage(context, const LogsPage())),
-            const SizedBox(height: 16),
-            Meta('${s.config.name} · ${s.config.appId} · design tokens $tokensVersion'),
+            const SectionHead('more'),
+            Door('models', meta: 'On-device AI, shared between apps', onTap: () => pushPage(context, const ModelsPage())),
+            Door('privacy', meta: 'What this app did, and switches', onTap: () => pushPage(context, const PrivacyPage())),
+            Door('logs', meta: 'Each step, to copy when something fails', onTap: () => pushPage(context, const LogsPage())),
+            const SizedBox(height: SpaceTokens.l),
+            Text('${s.config.name} · ${s.config.appId} · design tokens $tokensVersion', style: context.type.caption),
           ],
         );
       },
@@ -57,7 +63,7 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
-/// A handwriting choice that previews itself.
+/// A reading voice that previews itself in its own face.
 class _VoiceRow extends StatelessWidget {
   const _VoiceRow({required this.voice, required this.selected});
   final Voice voice;
@@ -72,17 +78,22 @@ class _VoiceRow extends StatelessWidget {
       inMutuallyExclusiveGroup: true,
       child: InkWell(
         borderRadius: BorderRadius.circular(RadiusTokens.row + 2),
-        onTap: () => s.settings.update((x) => x.voiceId = voice.id),
+        onTap: () => s.settings.update((x) {
+          x
+            ..voiceId = voice.id
+            ..typeNotice = false;
+        }),
         child: Container(
           decoration: BoxDecoration(color: selected ? c.smudge : null, borderRadius: BorderRadius.circular(RadiusTokens.row + 2)),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          constraints: const BoxConstraints(minHeight: SizeTokens.row),
+          padding: const EdgeInsets.symmetric(horizontal: SpaceTokens.sm, vertical: SpaceTokens.sm),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 22,
                 height: 22,
-                margin: const EdgeInsets.only(top: 2),
+                margin: const EdgeInsets.only(top: 3),
                 decoration: ShapeDecoration(
                   shape: CircleBorder(side: BorderSide(color: c.ink, width: 1.8)),
                 ),
@@ -102,8 +113,8 @@ class _VoiceRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(voice.label, style: context.type.label),
-                    Text('Notes, transcripts and summaries read like this.', style: voice.style(15, 21, color: c.ink)),
-                    Meta(voice.note),
+                    Text('Notes, transcripts and summaries read like this.', style: voice.of(BodyTypeTokens.body, color: c.ink)),
+                    Text(voice.note, style: voice.of(BodyTypeTokens.caption, color: c.pencil)),
                   ],
                 ),
               ),

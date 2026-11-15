@@ -18,42 +18,44 @@ class TodayPage extends StatelessWidget {
           wordmark: s.config.wordmark,
           actions: const [ShellActions()],
           children: [
-            const SizedBox(height: 16),
+            const SizedBox(height: SpaceTokens.m),
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Flexible(child: Text(greeting(now), style: context.type.headline.copyWith(fontSize: 44))),
-                const SizedBox(width: 10),
-                DoodleIcon(day ? Doodle.sun : Doodle.moon, size: 36, color: context.colors.pencil, tilt: -10),
+                Flexible(child: Text(greeting(now), style: context.type.headline)),
+                const SizedBox(width: SpaceTokens.sm),
+                DoodleIcon(day ? Doodle.sun : Doodle.moon, size: 32, color: context.colors.pencil, tilt: -10),
               ],
             ),
-            Meta(MaterialLocalizations.of(context).formatFullDate(now)),
-            const SizedBox(height: 16),
-            if (missing.isNotEmpty)
-              Door(
-                'get the model',
-                mark: 'model',
-                meta: '${s.models.spec(missing.first).name}, ${formatBytes(s.models.spec(missing.first).bytes)}',
-                leading: const DoodleIcon(Doodle.spark, size: 28),
-                onTap: () => pushPage(context, const ModelsPage()),
-              )
-            else ...[
-              const SizedBox(height: 24),
+            Text(MaterialLocalizations.of(context).formatFullDate(now), style: context.type.caption),
+            if (missing.isNotEmpty) ...[
+              const SectionHead('needs you'),
+              for (final id in missing)
+                ItemRow(
+                  s.models.spec(id).name,
+                  aside: formatBytes(s.models.spec(id).bytes),
+                  meta: 'Not on this device yet. ${s.config.name} needs it.',
+                  doodle: Doodle.spark,
+                  onTap: () => pushPage(context, const ModelsPage()),
+                ),
+            ] else ...[
+              const SizedBox(height: SpaceTokens.xl),
               MarkedText('all quiet.', mark: 'quiet', style: context.type.title),
-              const SizedBox(height: 4),
-              Meta('${s.models.claimedByThisApp.where(s.models.isReady).length} model(s) ready, ${formatBytes(s.models.bytesOnDisk)} shared on this device'),
+              const SizedBox(height: SpaceTokens.xs),
+              Body(_ready(s)),
             ],
+            const SizedBox(height: SpaceTokens.l),
             const HandDivider(seed: 4),
             Door(
               'models',
               meta: s.models.location.description,
-              leading: const DoodleIcon(Doodle.spark, size: 28),
+              leading: const DoodleIcon(Doodle.spark, size: SizeTokens.icon),
               onTap: () => pushPage(context, const ModelsPage()),
             ),
             Door(
               'privacy',
               meta: '${formatBytes(s.ledger.bytesDownloaded)} downloaded, nothing uploaded',
-              leading: const DoodleIcon(Doodle.lock, size: 28),
+              leading: const DoodleIcon(Doodle.lock, size: SizeTokens.icon),
               onTap: () => pushPage(context, const PrivacyPage()),
             ),
           ],
@@ -61,4 +63,9 @@ class TodayPage extends StatelessWidget {
       },
     );
   }
+}
+
+String _ready(BaseServices s) {
+  final n = s.models.claimedByThisApp.where(s.models.isReady).length;
+  return '${n == 0 ? 'No models' : n == 1 ? '1 model' : '$n models'} ready here, ${formatBytes(s.models.bytesOnDisk)} shared on this device.';
 }

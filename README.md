@@ -4,7 +4,7 @@ The starting point for the next 20 apps. One Flutter codebase per app builds for
 
 - **one model store per device**: an AI model is downloaded once and used by every app ([docs/MODEL_STORE.md](docs/MODEL_STORE.md));
 - **one design system**: Burrow's hand-drawn minimal look, now cross-platform ([design/THEME.md](design/THEME.md));
-- **one shell**: onboarding, settings (light/dark, five handwriting voices), models page, privacy page with a ledger and "never go online";
+- **one shell**: onboarding, settings (light/dark, three reading voices), models page, privacy page with a ledger and "never go online";
 - **one set of rules and skills**, so a change made once reaches every app ([docs/PROPAGATION.md](docs/PROPAGATION.md)).
 
 It is built from the three existing apps: the design system from **Burrow** (Android-Showcase), the model hub and on-device engines from **PhoneDots**, and the release discipline from **Spreix** (spreix-notetaker-apps). What came from where, and why Flutter: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Lessons carried over: [docs/LESSONS.md](docs/LESSONS.md).
@@ -39,7 +39,7 @@ With Claude Code, ask for it in words: the `new-app` skill does the above.
 
 ```
 apps/starter/          the template app: today · ask · design (every component, live)
-packages/base_design   tokens, theme, handwriting voices, wobble, doodles, components
+packages/base_design   tokens, theme, reading voices, wobble, doodles, components
 packages/base_models   model catalog + shared on-device store (Dart + Kotlin + Swift)
 packages/base_ai       engine interfaces, demo engines, platform-channel clients
 packages/base_ai_native  opt-in LiteRT-LM (Gemma) and Desert Ant bridges, Android + iOS
@@ -83,7 +83,7 @@ Burrow, PhoneDots and Spreix each have a `base-platform` skill for their side of
 Verified in this repo (Linux host):
 
 - `flutter analyze`: clean, every package and app.
-- Tests: design system (wobble bit-identical to Burrow's Kotlin, doodles, voices, the component catalogue at 360 wide in light and dark, nav on narrow screens), model store (two apps sharing one store with no second download, release semantics, "never go online", checksum failure, resume from a partial file), core (settings, ledger, wipe), the starter app end to end (onboarding → tabs → settings → models at 390 wide), and the tool (generator, new-app renaming).
+- Tests: design system (wobble bit-identical to Burrow's Kotlin, doodles, voices, contrast and minimum sizes, the component catalogue at 360 wide in light and dark, nav on narrow screens), model store (two apps sharing one store with no second download, release semantics, "never go online", checksum failure, resume from a partial file), core (settings, ledger, wipe), the starter app end to end (onboarding → tabs → settings → models at 390 wide), and the tool (generator, new-app renaming).
 - `./base check`: 0 errors, 0 warnings; every one of the 44 catalog models has verified checksums and sizes.
 - Builds of the starter: **web** and **Linux** release builds and an **Android** debug APK succeed; the merged Android manifest has the shared-model provider behind the signature permission.
 

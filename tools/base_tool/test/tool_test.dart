@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:base_tool/check.dart';
 import 'package:base_tool/gen.dart';
 import 'package:base_tool/new_app.dart';
 import 'package:base_tool/workspace.dart';
@@ -17,7 +18,37 @@ void main() {
   test('colour parsing: #RRGGBB and #AARRGGBB', () {
     expect(argb('#FFE45C'), 0xFFFFE45C);
     expect(argb('#261A1A1A'), 0x261A1A1A);
-    expect(cssTokens(repo.readJson('design/tokens.json')), contains('--base-rule: rgba(26, 26, 26, 0.15);'));
+    expect(cssTokens(repo.readJson('design/tokens.json')), contains('--base-rule: rgba(26, 26, 26, 0.20);'));
+  });
+
+  test('2.0 token shapes: dark series, sizes and the mono font reach every language', () {
+    final t = repo.readJson('design/tokens.json');
+    final dart = dartTokens(t), css = cssTokens(t), kt = kotlinTokens(t), swift = swiftTokens(t);
+    expect(dart, allOf(contains('const seriesDarkTokens = <Color>[Color(0xFFE8E3D8)'), contains('abstract final class SizeTokens'), contains('static const double minTap = 48.0;')));
+    expect(dart, allOf(contains("const monoFontFamily = 'monospace';"), contains("'Menlo'")));
+    expect(css, allOf(contains('--base-size-min-tap: 48px;'), contains('--base-font-mono: '), contains('--base-series-0: #e8e3d8;')));
+    expect(kt, allOf(contains('val seriesDark = listOf('), contains('object Size {'), contains('val monoFallback = listOf(')));
+    expect(swift, allOf(contains('public enum Size {'), contains('public static let seriesDark'), contains('public static let monoFallback')));
+  });
+
+  test('a token file without the 2.0 groups still generates (series used for dark, no sizes)', () {
+    final t = {
+      ...repo.readJson('design/tokens.json'),
+      'size': null,
+      'font': {'hand': 'Caveat', 'voices': <Object>[], 'defaultVoice': 'x'},
+    };
+    (t['color'] as Map).remove('seriesDark');
+    expect(dartTokens(t), allOf(isNot(contains('SizeTokens')), contains("const monoFontFamily = 'monospace';")));
+    expect(cssTokens(t), contains('--base-series-0: #1a1a1a;'));
+  });
+
+  test('app code: no font sizes, and graphite is not for text', () {
+    expect(lintAppLine("Text('x', style: context.type.body.copyWith(fontSize: 18))"), hasLength(1));
+    expect(lintAppLine("Text('x', style: context.type.meta.copyWith(color: c.graphite))"), hasLength(1));
+    expect(lintAppLine('Meta(note, color: context.colors.graphite)'), hasLength(1));
+    expect(lintAppLine("Text('x', style: context.type.meta)"), isEmpty);
+    expect(lintAppLine('DoodleIcon(Doodle.squiggle, color: c.graphite)'), isEmpty);
+    expect(lintAppLine('Text(hint, style: t.body.copyWith(color: c.graphite)), // base-check: ignore'), isEmpty);
   });
 
   group('new app', () {

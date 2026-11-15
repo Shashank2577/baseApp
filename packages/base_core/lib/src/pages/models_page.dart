@@ -10,6 +10,9 @@ import '../services.dart';
 class ModelsPage extends StatelessWidget {
   const ModelsPage({super.key});
 
+  /// More missing than this, and one "download all" pill replaces the per-row pills.
+  static const _manyMissing = 3;
+
   @override
   Widget build(BuildContext context) {
     final s = BaseScope.of(context);
@@ -22,6 +25,10 @@ class ModelsPage extends StatelessWidget {
           for (final m in store.catalog.all)
             if (store.isReady(m.id) && !mine.contains(m.id)) m,
         ];
+        final missing = [for (final id in mine) if (_downloadable(s, store.spec(id))) id];
+        final many = missing.length > _manyMissing;
+        final missingBytes = missing.fold<int>(0, (sum, id) => sum + store.spec(id).bytes);
+        final here = formatBytes(store.bytesOnDisk);
         return HandPage(
           onBack: () => Navigator.pop(context),
           children: [
@@ -29,24 +36,37 @@ class ModelsPage extends StatelessWidget {
               title: 'models',
               purpose:
                   'The AI models ${s.config.name} uses. They stay on this device and are shared with your other ${PlatformConfig.vendorName} apps, so each one is downloaded once.',
-              mark: 'models',
               doodle: Doodle.spark,
             ),
-            Meta('Kept in: ${store.location.description}.'),
-            Meta('${formatBytes(store.bytesOnDisk)} on this device, for every app together.'),
-            if (s.ai.isDemo) const Meta('This build runs the demo engine: model output is scripted and labelled as a demo.'),
-            const SizedBox(height: 8),
+            MarkedText('$here on this device, for every app together.', mark: here, style: context.type.body),
+            const SizedBox(height: SpaceTokens.xs),
+            Meta('Kept in ${store.location.description}.'),
+            if (s.ai.isDemo) const Meta('This build runs the demo engine: answers are scripted and labelled as a demo.'),
             const SectionHead('this app uses'),
+            if (many)
+              Padding(
+                padding: const EdgeInsets.only(bottom: SpaceTokens.s),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: PillButton(
+                    'download all (${formatBytes(missingBytes)})',
+                    leading: Doodle.arrow,
+                    onPressed: () => _ModelRow.run(context, () async {
+                      for (final id in missing) {
+                        await s.ensureModel(id);
+                      }
+                    }),
+                  ),
+                ),
+              ),
             if (mine.isEmpty) const Meta('No models yet.'),
-            for (final id in mine) _ModelRow(spec: store.spec(id), required: s.config.requiredModels.contains(id)),
-            const SizedBox(height: 16),
-            const SectionHead('gated models', note: 'Gemma'),
-            const Meta('Some models need their licence accepted on huggingface.co first. Paste your access token here; it is only sent to huggingface.co.'),
-            const SizedBox(height: 8),
+            for (final id in mine) _ModelRow(spec: store.spec(id), required: s.config.requiredModels.contains(id), compact: many),
+            const SectionHead('gated models'),
+            const Body('Some models, such as Gemma, need their licence accepted on huggingface.co first. Paste your access token here; it is only sent to huggingface.co.'),
+            const SizedBox(height: SpaceTokens.sm),
             const _TokenField(),
             if (others.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              const SectionHead('already here, from other apps', note: 'free to use'),
+              const SectionHead('already here, from other apps', note: 'Free to use: no download.'),
               for (final m in others) _ModelRow(spec: m, required: false),
             ],
           ],
@@ -54,85 +74,108 @@ class ModelsPage extends StatelessWidget {
       },
     );
   }
+
+  static bool _downloadable(BaseServices s, ModelSpec spec) {
+    final state = s.models.stateOf(spec.id);
+    if (spec.source == ModelSource.sdk && s.ai.isDemo) return false;
+    return (state.status == ModelStatus.absent || state.status == ModelStatus.failed) && !state.inSibling;
+  }
 }
 
+String _sentence(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
 class _ModelRow extends StatelessWidget {
-  const _ModelRow({required this.spec, required this.required});
+  const _ModelRow({required this.spec, required this.required, this.compact = false});
   final ModelSpec spec;
   final bool required;
+
+  /// Many rows need a download: each offers a link, not a pill.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final s = BaseScope.of(context);
     final state = s.models.stateOf(spec.id);
     final c = context.colors;
+    final t = context.type;
     final others = state.users.where((u) => u != s.config.appId).length;
     final usedBy = state.users.contains(s.config.appId);
-    final facts = [
-      formatBytes(spec.bytes),
-      spec.role,
-      if (others > 0) 'shared with $others other app${others == 1 ? '' : 's'}',
-      if (state.inSibling) 'on this phone in another app, no download',
-      if (required) 'needed',
-    ].join(' · ');
+    final facts = _sentence([spec.role, if (required) 'needed'].join(' · '));
 
-    Widget action;
+    Widget get(String label) => compact
+        ? HandLink(label, onPressed: () => run(context, () => s.ensureModel(spec.id)))
+        : PillButton(label, leading: Doodle.arrow, onPressed: () => run(context, () => s.ensureModel(spec.id)));
+
+    Widget line(String text, Widget? action) => Row(
+      children: [
+        Expanded(child: Text(text, style: t.caption)),
+        if (action != null) ...[const SizedBox(width: SpaceTokens.sm), action],
+      ],
+    );
+
+    Widget stateLine;
     switch (state.status) {
       case ModelStatus.downloading:
-        action = HandLink('cancel', onPressed: () => s.models.cancel(spec.id));
+        stateLine = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            HandProgress(fraction: state.busyElsewhere ? null : state.progress),
+            line(
+              state.busyElsewhere
+                  ? 'Another app is downloading this; it will be ready here too.'
+                  : 'Downloading, ${(state.progress * 100).round()}%',
+              HandLink('cancel', onPressed: () => s.models.cancel(spec.id)),
+            ),
+          ],
+        );
       case ModelStatus.ready:
-        action = usedBy
-            ? HandLink('remove', onPressed: () => _remove(context))
-            : PillButton('use', onPressed: () => _run(context, () => s.ensureModel(spec.id)));
+        final where = others > 0 ? 'On this device · shared with $others other app${others == 1 ? '' : 's'}' : 'On this device';
+        stateLine = usedBy
+            ? line(where, HandLink('remove', onPressed: () => _remove(context)))
+            : Align(alignment: Alignment.centerLeft, child: PillButton('use', onPressed: () => run(context, () => s.ensureModel(spec.id))));
       case ModelStatus.absent || ModelStatus.failed when spec.source == ModelSource.sdk && s.ai.isDemo:
         // SDK models install through the native engine; the demo build has none.
-        action = const SizedBox(width: 96, child: Meta('needs the on-device engine', textAlign: TextAlign.end));
+        stateLine = line('Needs the on-device engine, which this build does not have.', null);
       case ModelStatus.absent when state.inSibling:
         // Another app on this phone has it: using it copies the files, no download.
-        action = PillButton('use', onPressed: () => _run(context, () => s.ensureModel(spec.id)));
+        stateLine = Align(
+          alignment: Alignment.centerLeft,
+          child: compact
+              ? HandLink('use, no download', onPressed: () => run(context, () => s.ensureModel(spec.id)))
+              : PillButton('use, no download', onPressed: () => run(context, () => s.ensureModel(spec.id))),
+        );
       case ModelStatus.absent:
       case ModelStatus.failed:
-        action = PillButton(
-          state.status == ModelStatus.failed ? 'try again' : 'download',
-          leading: Doodle.arrow,
-          onPressed: () => _run(context, () => s.ensureModel(spec.id)),
-        );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
+        stateLine = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (state.status == ModelStatus.failed && state.error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: SpaceTokens.xs),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(spec.name, style: context.type.door.copyWith(fontSize: 24)),
-                    Meta(spec.summary),
-                    Meta(facts),
+                    DoodleIcon(Doodle.exclaim, size: SizeTokens.iconSmall, color: c.redPen, stroke: 2.6),
+                    const SizedBox(width: SpaceTokens.xs),
+                    Expanded(child: Text(state.error!, style: t.meta.copyWith(color: c.ink))),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              action,
-            ],
-          ),
-          if (state.status == ModelStatus.downloading) ...[
-            const SizedBox(height: 6),
-            HandProgress(fraction: state.busyElsewhere ? null : state.progress),
-            if (state.busyElsewhere) const Meta('another app is downloading this; it will be ready here too'),
+            get(state.status == ModelStatus.failed ? 'try again' : 'download'),
           ],
-          if (state.status == ModelStatus.failed && state.error != null) Meta(state.error!, color: c.redPen),
-          const HandDivider(),
-        ],
-      ),
+        );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ItemRow(spec.name, aside: formatBytes(spec.bytes), meta: spec.summary, caption: facts, below: stateLine),
+        const HandDivider(),
+      ],
     );
   }
 
-  Future<void> _run(BuildContext context, Future<void> Function() job) async {
+  static Future<void> run(BuildContext context, Future<void> Function() job) async {
     try {
       await job();
     } on DownloadCancelled {
@@ -198,12 +241,12 @@ class _TokenFieldState extends State<_TokenField> {
         onChanged: (_) => setState(() => _saved = false),
         onSubmitted: (_) => _save(),
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: SpaceTokens.s),
       Row(
         children: [
           PillButton('save token', onPressed: _save),
-          const SizedBox(width: 12),
-          if (_saved) const Flexible(child: Meta('saved on this device')),
+          const SizedBox(width: SpaceTokens.sm),
+          if (_saved) Flexible(child: Text('Saved on this device.', style: context.type.caption)),
         ],
       ),
     ],

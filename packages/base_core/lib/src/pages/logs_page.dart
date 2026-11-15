@@ -22,21 +22,31 @@ class LogsPage extends StatelessWidget {
             const PageIntro(
               title: 'logs',
               purpose: 'Each step the app took with its models, and anything that failed. Copy it and paste it when you report a problem.',
-              mark: 'logs',
               doodle: Doodle.spark,
             ),
             Row(
               children: [
                 PillButton('copy all', onPressed: () => _copy(context)),
-                const SizedBox(width: 12),
-                HandLink('clear', onPressed: s.log.clear),
+                const SizedBox(width: SpaceTokens.sm),
+                HandLink('clear', onPressed: lines.isEmpty ? null : s.log.clear),
               ],
             ),
-            const SizedBox(height: 12),
-            Meta('${lines.length} line${lines.length == 1 ? '' : 's'}, newest last. Kept on this device only.'),
+            const SizedBox(height: SpaceTokens.sm),
+            Meta('${lines.length} line${lines.length == 1 ? '' : 's'}, newest first. Kept on this device only.'),
+            const SizedBox(height: SpaceTokens.s),
             const HandDivider(),
+            const SizedBox(height: SpaceTokens.s),
             if (lines.isEmpty) const Meta('Nothing yet.'),
-            for (final line in lines) SelectableText(line, style: context.type.mono),
+            if (lines.isNotEmpty)
+              SelectionArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final line in lines.reversed)
+                      Padding(padding: const EdgeInsets.only(bottom: SpaceTokens.xs), child: Text(line, style: context.type.mono)),
+                  ],
+                ),
+              ),
           ],
         );
       },

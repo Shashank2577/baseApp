@@ -71,19 +71,20 @@ class _AskPageState extends State<AskPage> {
               purpose: 'Ask the model on this device a question. Nothing you type leaves it.',
               doodle: Doodle.bubble,
             ),
-            if (!ready)
+            if (!ready) ...[
               DoneNote(
                 '${s.models.spec(_modelId).name} is not on this device yet.',
                 action: 'get it',
                 onAction: () => pushPage(context, const ModelsPage()),
               ),
+              const SizedBox(height: SpaceTokens.sm),
+            ],
             HandField(controller: _question, placeholder: 'what would you like to know?', minHeight: 96, leading: Doodle.pen),
-            const SizedBox(height: 16),
             if (_answer.isNotEmpty) ...[
               const SectionHead('answer'),
-              Body(_answer),
-              const SizedBox(height: 8),
-              OnDeviceStamp(text: s.ai.isDemo ? 'demo engine: scripted, not a model' : 'answered on this device'),
+              Prose(_answer),
+              const SizedBox(height: SpaceTokens.s),
+              OnDeviceStamp(text: s.ai.isDemo ? 'Demo engine: scripted, not a model' : 'Answered on this device'),
             ],
           ],
         );

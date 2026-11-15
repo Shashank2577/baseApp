@@ -20,7 +20,7 @@ flutter test
 For each app in `apps/`:
 
 - **Config**: `lib/app_config.dart` is the only place the app's identity, tabs and models are set. Two to four tabs. `requiredModels` is the true minimum.
-- **Design** (`design/THEME.md`): every page opens with `PageIntro`; one `InkButton`; at most one marker; `Door` rows; doodles only; no cards; red pen only for private/destructive; `ShellActions` on home pages. Look at each page in light and dark with "all handwritten".
+- **Design** (`design/THEME.md`): every page opens with `PageIntro`; one `InkButton`; at most one marker; `Door` rows; doodles only; no cards; red pen only for private/destructive; `ShellActions` on home pages. Look at each page in light and dark with "neat hand"; no Caveat for data or under 24, no graphite text, `ItemRow` for content.
 - **Models** (`docs/MODEL_STORE.md`): every model comes from the catalog through `ensureModel`/`pathOf`; nothing downloads elsewhere; `OfflineException` handled with a helpful message; no silent `release`/`deleteEverywhere`.
 - **Privacy**: the privacy page's sentences are true; the app adds its own `ledgerEntries`; no analytics, accounts or uploads unless the user agreed and the copy says so.
 - **Code that should be shared**: anything in the app that a second app would want (a widget, a helper, a fix to shell behaviour). Move it with `propagate-change`.

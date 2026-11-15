@@ -7,7 +7,7 @@ apps/<app>            one folder per app: lib/app_config.dart + its own pages
    │  depends on
 packages/base_core     the shell: BaseApp, onboarding, settings / models / privacy pages,
    │                   JsonStore, BaseSettings, Ledger, BaseServices (BaseScope.of(context))
-   ├── base_design     tokens → theme, handwriting voices, wobble, doodles, components
+   ├── base_design     tokens → theme, reading voices, wobble, doodles, components
    ├── base_models     catalog + the shared on-device model store (+ Android/iOS/macOS native bits)
    └── base_ai         engine interfaces (LLM, embeddings, specialists, device), demo engines,
                        platform-channel clients
@@ -61,7 +61,7 @@ Inside any page: `BaseScope.of(context)` gives `models`, `ai`, `settings`, `ledg
 - Plain `ChangeNotifier` services and `ListenableBuilder`, no state-management package (as in PhoneDots).
 - `JsonStore`: JSON documents in the app's support folder (atomic writes), `shared_preferences` on web, in-memory in tests.
 - Model files never go in `JsonStore`; they go in the shared model store.
-- Navigation: `pushPage(context, page)` (Material page routes). Lists and details sit side by side from 700 wide (`TwoPane`).
+- Navigation: `pushPage(context, page)` (Material page routes). Lists and details sit side by side from 840 wide (`TwoPane`); from 1000 the nav words become a rail on the left (`HandNav.rail`, chosen by `BaseShell`).
 
 ## AI engines
 
