@@ -11,7 +11,7 @@ packages/base_core     the shell: BaseApp, onboarding, settings / models / priva
    ├── base_models     catalog + the shared on-device model store (+ Android/iOS/macOS native bits)
    └── base_ai         engine interfaces (LLM, embeddings, specialists, device), demo engines,
                        platform-channel clients
-packages/base_ai_native  opt-in plugin: LiteRT-LM (Gemma) + Desert Ant bridges for Android/iOS
+packages/base_ai_native  opt-in plugin: LiteRT-LM (Gemma) + Desert Ant bridges for Android, iOS and macOS
 tools/base_tool         ./base gen | new | check | sync | checksums
 design/                 tokens.json, doodles.json, THEME.md       (sources)
 catalog/models.json     every model any app may use               (source)
@@ -68,7 +68,7 @@ Inside any page: `BaseScope.of(context)` gives `models`, `ai`, `settings`, `ledg
 `AiRuntime.forPlatform(nativeBridges: config.nativeAi)`:
 
 - **demo** (default; web, desktop, tests): scripted output, always labelled as a demo. The whole app is explorable without a model.
-- **native** (Android/iOS with `base_ai_native`): Gemma through LiteRT-LM, Desert Ant specialists. Paths come from the shared store.
+- **native** (Android, iOS and Apple-silicon macOS with `base_ai_native`): Gemma through LiteRT-LM, Desert Ant specialists. Paths come from the shared store.
 
 The channel contract is `docs/NATIVE_BRIDGE.md`. Desktop inference (LiteRT-LM has desktop builds; ONNX Runtime for the speech packs) is the next engine to add; the interfaces don't change.
 

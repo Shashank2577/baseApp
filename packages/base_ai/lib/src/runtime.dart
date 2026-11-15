@@ -14,17 +14,24 @@ class AiRuntime {
   AiRuntime._(this.llm, this.embedder, this.specialists, this.device);
 
   factory AiRuntime.forPlatform({bool nativeBridges = false}) {
-    final native =
-        nativeBridges && !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
+    final native = nativeBridges && nativeEnginesHere;
     if (!native) return AiRuntime.demo();
     return AiRuntime._(
-      // Android's LiteRT-LM does constrained tool calling; iOS parses calls from text.
+      // Android's LiteRT-LM does constrained tool calling; iOS and macOS parse calls from text.
       PlatformLlmEngine(nativeTools: defaultTargetPlatform == TargetPlatform.android),
       PlatformEmbedder(),
       PlatformSpecialistEngine(),
       PlatformDeviceActions(),
     );
   }
+
+  /// Whether base_ai_native has engines for this platform: Android, iOS and
+  /// macOS (Apple silicon). Web, Windows and Linux run the demo engines.
+  static bool get nativeEnginesHere =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
 
   factory AiRuntime.demo() => AiRuntime._(DemoLlmEngine(), LexicalEmbedder(), DemoSpecialistEngine(), DemoDeviceActions());
 

@@ -21,7 +21,7 @@
       "platforms": [
         "android",
         "ios"
-      ],
+      , "macos"],
       "recommended": true,
       "source": "file",
       "files": [
@@ -52,7 +52,7 @@
       "platforms": [
         "android",
         "ios"
-      ],
+      , "macos"],
       "recommended": false,
       "source": "file",
       "files": [
@@ -189,7 +189,7 @@
       "platforms": [
         "android",
         "ios"
-      ],
+      , "macos"],
       "recommended": false,
       "source": "sdk",
       "sdk": {
@@ -215,7 +215,7 @@
       "platforms": [
         "android",
         "ios"
-      ],
+      , "macos"],
       "recommended": false,
       "source": "sdk",
       "sdk": {
@@ -241,7 +241,7 @@
       "platforms": [
         "android",
         "ios"
-      ],
+      , "macos"],
       "recommended": false,
       "source": "sdk",
       "sdk": {
@@ -338,7 +338,7 @@
       "platforms": [
         "android",
         "ios"
-      ],
+      , "macos"],
       "recommended": false,
       "source": "sdk",
       "sdk": {
@@ -364,7 +364,7 @@
       "platforms": [
         "android",
         "ios"
-      ],
+      , "macos"],
       "recommended": false,
       "source": "sdk",
       "sdk": {
@@ -391,7 +391,7 @@
       "platforms": [
         "android",
         "ios"
-      ],
+      , "macos"],
       "recommended": false,
       "source": "sdk",
       "sdk": {
@@ -417,7 +417,7 @@
       "platforms": [
         "android",
         "ios"
-      ],
+      , "macos"],
       "recommended": false,
       "source": "sdk",
       "sdk": {
@@ -466,7 +466,7 @@
       "platforms": [
         "android",
         "ios"
-      ],
+      , "macos"],
       "recommended": false,
       "source": "sdk",
       "sdk": {

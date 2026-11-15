@@ -1,6 +1,6 @@
 # Native bridge contract
 
-Dart talks to the native engines over four method channels and two event channels. Kotlin (`packages/base_ai_native/android/…/`) and Swift (`packages/base_ai_native/ios/…/`) implement the same contract; both were ported from PhoneDots. The Dart side is `packages/base_ai/lib/src/platform_engines.dart`.
+Dart talks to the native engines over four method channels and two event channels. Kotlin (`packages/base_ai_native/android/…/`) and Swift (`packages/base_ai_native/darwin/…/`, shared by iOS and macOS) implement the same contract; both were ported from PhoneDots. The Dart side is `packages/base_ai/lib/src/platform_engines.dart`.
 
 ## `base/llm` (Gemma on LiteRT-LM)
 

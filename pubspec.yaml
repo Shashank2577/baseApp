@@ -16,3 +16,4 @@ workspace:
   - packages/base_core
   - tools/base_tool
   - apps/starter
+  - apps/burrow

@@ -1,5 +1,5 @@
 name: base_ai_native
-description: Native bridges for base_ai - Gemma through LiteRT-LM and the Desert Ant specialists (Android and iOS). Opt-in, it adds about 200 MB of native libraries.
+description: Native bridges for base_ai - Gemma through LiteRT-LM and the Desert Ant specialists (Android, iOS and macOS). Opt-in, it adds about 200 MB of native libraries.
 version: 1.0.0
 publish_to: none
 resolution: workspace
@@ -23,3 +23,7 @@ flutter:
         pluginClass: BaseAiNativePlugin
       ios:
         pluginClass: BaseAiNativePlugin
+        sharedDarwinSource: true
+      macos:
+        pluginClass: BaseAiNativePlugin
+        sharedDarwinSource: true
