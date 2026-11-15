@@ -210,8 +210,8 @@ void main() {
     await tester.tap(find.widgetWithText(InkButton, 'ask'));
     await settle(tester, 20);
     expect(find.textContaining('Demo engine, no model'), findsOneWidget);
-    await scrollTo(tester, find.text('1 step'));
-    await tester.tap(find.text('1 step'));
+    await scrollTo(tester, find.text('1 step, all on this device'));
+    await tester.tap(find.text('1 step, all on this device'));
     await settle(tester);
     expect(find.text('search talks'), findsOneWidget);
     await scrollTo(tester, find.text('from'));
@@ -257,6 +257,23 @@ void main() {
     await settle(tester);
     expect(data.talks, isEmpty);
     expect(Directory(files.path).listSync(), isEmpty);
+  });
+
+  testWidgets('on a wide window the talk opens beside the list', (tester) async {
+    final s = await boot(tester);
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    await settle(tester);
+    await tester.tap(find.text('talks'));
+    await settle(tester);
+    await tester.tap(find.text('import a recording'));
+    await settle(tester, 60);
+    final talk = BurrowData.forServices(s).talks.single;
+    // Both the list row and the open talk show the title; no route was pushed.
+    expect(find.text(talk.title), findsNWidgets(2));
+    expect(find.text('decided'), findsOneWidget);
+    expect(find.byTooltip('back'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('settings and the shared models page', (tester) async {

@@ -165,7 +165,7 @@ class _RecordPageState extends State<RecordPage> {
             ),
             const SizedBox(height: 16),
             Meta(
-              'On iPhone and Mac the recording goes on with the screen locked or Burrow in the background. On Android, keep Burrow open.',
+              'Tell people you\'re recording. On iPhone and Mac it goes on with the screen locked; on Android, keep Burrow open.',
               color: c.pencil,
               textAlign: TextAlign.center,
             ),

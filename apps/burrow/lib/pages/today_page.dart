@@ -60,7 +60,7 @@ class TodayPage extends StatelessWidget {
             ],
             // One marker per screen, on a fact: how many to-dos are due.
             if (due > 0)
-              MarkedText('$due to-do${due == 1 ? '' : 's'} due this week', mark: '$due', style: context.type.title)
+              MarkedText('$due thing${due == 1 ? '' : 's'} need${due == 1 ? 's' : ''} you', mark: '$due thing${due == 1 ? '' : 's'}', style: context.type.title)
             else
               Text(data.talks.isEmpty ? 'nothing yet.' : 'all quiet.', style: context.type.title),
             const SizedBox(height: 4),
@@ -94,6 +94,7 @@ class TodayPage extends StatelessWidget {
             ],
             const SizedBox(height: 24),
             const HandDivider(seed: 4),
+            const SectionHead('tools'),
             if (voices.isNotEmpty)
               Door(
                 'voices to name',

@@ -86,7 +86,7 @@ class _TalksPageState extends State<TalksPage> {
       children: [
         const PageIntro(
           title: 'talks',
-          purpose: 'Record a meeting, a lecture or a call. Burrow writes the notes (who said what, the decisions, the to-dos) on this device.',
+          purpose: 'Record a meeting, a lecture or a call. Burrow writes the notes on this device: who said what, what was decided, what happens next.',
           doodle: Doodle.mic,
         ),
         Align(

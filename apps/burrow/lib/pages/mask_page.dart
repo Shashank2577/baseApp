@@ -141,12 +141,22 @@ class _MaskPageState extends State<MaskPage> {
         StepHead(2, 'copy the safe version', done: _stage > 1),
         if (_stage == 1 && m != null) ...[
           const SizedBox(height: 8),
-          MarkedText('${m.items.length} hidden', mark: '${m.items.length}', style: context.type.title),
+          MarkedText('${m.items.length} secret${m.items.length == 1 ? '' : 's'} found', mark: '${m.items.length} secret${m.items.length == 1 ? '' : 's'}', style: context.type.title),
           const SizedBox(height: 8),
           SelectableText(m.masked, style: context.type.body),
           const SizedBox(height: 8),
-          for (final k in m.items.keys)
-            Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(k, style: context.type.mono)),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final k in m.items.keys)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(color: context.colors.smudge, borderRadius: BorderRadius.circular(8)),
+                  child: Text(k, style: context.type.mono.copyWith(color: context.colors.ink, fontWeight: FontWeight.w600)),
+                ),
+            ],
+          ),
           if (s.ai.isDemo) ...[
             const SizedBox(height: 8),
             const OnDeviceStamp(text: 'demo engine: emails, phone numbers and cards found by pattern, not by Redact'),

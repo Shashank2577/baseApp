@@ -51,9 +51,11 @@ class _AskPageState extends State<AskPage> {
             onPressed: ready && !ask.busy ? () => ask.ask(_question.text) : null,
           ),
           children: [
-            const PageIntro(
+            PageIntro(
               title: 'ask Burrow',
-              purpose: 'Ask about your talks, people and to-dos. A small model on this device looks it up with Burrow\'s own tools and shows every step. Nothing leaves the device.',
+              purpose: ask.phase == AskPhase.idle
+                  ? 'Ask about your talks, people and to-dos. A small model on this device looks it up with Burrow\'s own tools. Nothing leaves the device.'
+                  : 'Answered from your talks, on this device.',
               doodle: Doodle.bubble,
             ),
             if (!ready)
@@ -99,7 +101,15 @@ class _AskPageState extends State<AskPage> {
             ],
             if (ask.answer != null) ...[
               const SizedBox(height: 24),
-              Text(ask.question, style: rowTitle(context)),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(color: context.colors.smudge, borderRadius: BorderRadius.circular(14)),
+                  child: Text(ask.question, style: context.type.body),
+                ),
+              ),
+              const SizedBox(height: 12),
               const SizedBox(height: 8),
               SelectableText(ask.answer!, style: reading(context)),
               const SizedBox(height: 8),
@@ -118,7 +128,7 @@ class _AskPageState extends State<AskPage> {
             if (ask.steps.isNotEmpty && !ask.busy) ...[
               const SizedBox(height: 8),
               HandLink(
-                _trace ? 'hide the steps' : '${ask.steps.length} step${ask.steps.length == 1 ? '' : 's'}',
+                _trace ? 'hide the steps' : '${ask.steps.length} step${ask.steps.length == 1 ? '' : 's'}, all on this device',
                 onPressed: () => setState(() => _trace = !_trace),
               ),
               if (_trace) for (final st in ask.steps) _step(context, st),
