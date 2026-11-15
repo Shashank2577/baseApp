@@ -1,0 +1,23 @@
+name: base_core
+description: The app shell every app is built on - storage, settings, privacy ledger, onboarding, settings/models/privacy pages.
+version: 1.0.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.7
+  flutter: ">=3.47.0"
+
+dependencies:
+  base_ai: any
+  base_design: any
+  base_models: any
+  flutter:
+    sdk: flutter
+  path_provider: ^2.1.5
+  shared_preferences: ^2.5.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
