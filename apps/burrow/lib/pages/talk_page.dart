@@ -8,7 +8,6 @@ import '../data/models.dart';
 import '../logic/processor.dart';
 import '../logic/summarizer.dart';
 import '../widgets/talk_bits.dart';
-import '../widgets/type_roles.dart';
 import 'mask_page.dart';
 import 'person_page.dart';
 
@@ -71,7 +70,7 @@ class _TalkViewState extends State<_TalkView> {
       actions: [HandLink('more', onPressed: () => _more(context))],
       children: [
         // A talk's title is data, so it is set in the reading face, not hand-lettered.
-        Text(t.title, style: contentTitle(context)),
+        Text(t.title, style: context.type.contentTitle),
         const SizedBox(height: 4),
         Meta([talkMeta(data, t), ?lang].join(' · ')),
         if (t.demo) ...[
@@ -105,7 +104,7 @@ class _TalkViewState extends State<_TalkView> {
           const SizedBox(height: 16),
         ],
         if (s != null && _part == _Part.summary) ...[
-          SelectableText(s.gist.isEmpty ? 'Nothing to sum up.' : s.gist, style: reading(context)),
+          Prose(s.gist.isEmpty ? 'Nothing to sum up.' : s.gist),
           const SizedBox(height: 6),
           Meta(s.byModel ? 'Written by ${s.model} on this device.' : '${s.model[0].toUpperCase()}${s.model.substring(1)}.'),
           if (s.decisions.isNotEmpty) ...[
@@ -185,7 +184,7 @@ class _TalkViewState extends State<_TalkView> {
         Container(width: 10, height: 10, decoration: BoxDecoration(color: seriesColor(sp.index), shape: BoxShape.circle)),
         const SizedBox(width: 10),
         Expanded(
-          child: ContentRow(
+          child: ItemRow(
             data.speakerName(talk, sp.index),
             meta: '$share% of the talk${person == null ? ' · not named yet' : ''}',
             onTap: () => nameVoice(context, data, talk, sp.index),
@@ -214,12 +213,12 @@ class _TalkViewState extends State<_TalkView> {
               children: [
                 Row(
                   children: [
-                    Flexible(child: Text(data.speakerName(talk, l.speaker), style: rowTitle(context))),
+                    Flexible(child: Text(data.speakerName(talk, l.speaker), style: context.type.rowTitle)),
                     const SizedBox(width: 8),
                     Text(clock(l.at), style: context.type.mono),
                   ],
                 ),
-                SelectableText(l.text, style: reading(context)),
+                SelectableText(l.text, style: context.type.reading),
               ],
             ),
           ),
@@ -259,7 +258,7 @@ Future<void> nameVoice(BuildContext context, BurrowData data, Talk talk, int ind
         Text('who is this?', style: context.type.title),
         const SizedBox(height: 8),
         if (talk.lines.where((l) => l.speaker == index).firstOrNull case final l?) ...[
-          Text('"${l.text}"', style: reading(context)),
+          Text('"${l.text}"', style: context.type.reading),
           Meta('Speaker ${index + 1} at ${clock(l.at)}'),
           const SizedBox(height: 8),
         ],

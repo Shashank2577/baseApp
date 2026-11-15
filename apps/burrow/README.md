@@ -55,8 +55,8 @@ Models (shared store, `catalog/models.json`): required on iPhone, Mac and Androi
 - **Tool calls on Apple** are read from text with PhoneDots' parser, now `ToolCallParser` in base_ai so every app can use it.
 - **Required models depend on the platform** (`AiRuntime.nativeEnginesHere`), so a web or desktop build doesn't ask for downloads it cannot use.
 - **Speaker naming** is manual: name a voice in a talk and it lands on that person's page. To-dos belong to a person when the summary names them.
-- **Design**: tabs, mask's place, the talk's three parts, answer-first ask and the wide layout follow `design/REVIEW.md` section 4. Until base_design ships the new type roles and `ItemRow`, `lib/widgets/type_roles.dart` holds stand-ins built from base_design tokens (titles of talks and people are set in the reading face, not hand-lettered).
-- **Mac window**: opens at 1100×760 at least, never smaller than 720×560; list and talk side by side from 700 wide.
+- **Design**: tabs, mask's place, the talk's three parts, answer-first ask and the wide layout follow `design/REVIEW.md` section 4. Built on the readable system (tokens 2.0.0): talks and people are `ItemRow`s, their titles in `contentTitle`, summaries and answers in `Prose`; the shell gives the Mac the word rail from 1000 wide and `TwoPane` puts a talk beside the list from 840.
+- **Mac window**: opens at 1100×760 at least, never smaller than 720×560.
 - **Copy**: Burrow's own sentences where they still fit ("Record a meeting, a lecture or a call…", "mask a message", "ask Burrow"); photos and chats are gone from them.
 
 ## Left out, and why
@@ -73,7 +73,7 @@ Models (shared store, `catalog/models.json`): required on iPhone, Mac and Androi
 | Summary language picker (25 languages) | Summaries are written in English for now; the prompt already takes a language, so this is a settings row away. |
 | A player with a speaker timeline, tap-to-play lines | No audio player plugin was added; the transcript shows times. |
 | `start_recording` tool, the brief's "you" on your own to-dos | Small; left for a later pass. |
-| The rail on the Mac (`HandNav.rail`), ⌘ shortcuts, drag-and-drop import, centred sheets | Belong in base_core/base_design (design/REVIEW.md); Burrow gets them when the shell does. |
+| ⌘ shortcuts, drag-and-drop import, centred sheets on the Mac | Belong in base_core/base_design (design/REVIEW.md); Burrow gets them when the shell does. |
 
 ## Tests
 

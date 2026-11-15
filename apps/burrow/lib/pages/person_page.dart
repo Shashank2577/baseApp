@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../data/burrow_data.dart';
 import '../widgets/talk_bits.dart';
-import '../widgets/type_roles.dart';
 import 'talk_page.dart';
 
 /// One person: the talks they were in and the to-dos that are theirs.
@@ -30,10 +29,10 @@ class PersonPage extends StatelessWidget {
         return HandPage(
           onBack: back,
           children: [
-            Text(p.isMe ? '${p.name} (you)' : p.name, style: contentTitle(context)),
+            Text(p.isMe ? '${p.name} (you)' : p.name, style: context.type.contentTitle),
             Text(
               '${talks.length} talk${talks.length == 1 ? '' : 's'} together · ${open.length} open to-do${open.length == 1 ? '' : 's'}',
-              style: caption(context),
+              style: context.type.caption,
             ),
             const SizedBox(height: 24),
             const SectionHead('to-dos'),
@@ -48,7 +47,7 @@ class PersonPage extends StatelessWidget {
             const SizedBox(height: 24),
             const SectionHead('talks together'),
             if (talks.isEmpty) const Meta('Not in any talk now.'),
-            for (final t in talks) ContentRow(t.title, meta: talkMeta(data, t), onTap: () => pushPage(context, TalkPage(talkId: t.id))),
+            for (final t in talks) ItemRow(t.title, meta: talkMeta(data, t), onTap: () => pushPage(context, TalkPage(talkId: t.id))),
             const SizedBox(height: 24),
             Center(
               child: HandLink(

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../data/burrow_data.dart';
 import '../data/models.dart';
-import '../widgets/type_roles.dart';
 import 'person_page.dart';
 import 'talk_page.dart';
 
@@ -56,7 +55,7 @@ class _PeoplePageState extends State<PeoplePage> {
           const SectionHead('voices to name'),
           Meta('${voices.length} from the last two weeks.'),
           for (final (t, sp) in voices.take(6))
-            ContentRow(
+            ItemRow(
               'Speaker ${sp.index + 1}',
               meta: 'In ${t.title}, ${(sp.talkSec / 60).ceil()} min of talking',
               leading: const DoodleIcon(Doodle.wave, size: 24),
@@ -74,8 +73,9 @@ class _PeoplePageState extends State<PeoplePage> {
           )
         else ...[
           for (final p in people)
-            ContentRow(
+            ItemRow(
               p.isMe ? '${p.name} (you)' : p.name,
+              initial: p.name.isEmpty ? '?' : p.name[0].toUpperCase(),
               meta: _meta(data, p),
               selected: context.isWide && p.id == _open,
               onTap: () => context.isWide ? setState(() => _open = p.id) : pushPage(context, PersonPage(personId: p.id)),

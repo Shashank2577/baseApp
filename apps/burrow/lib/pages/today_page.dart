@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../data/burrow_data.dart';
 import '../data/models.dart';
 import '../widgets/talk_bits.dart';
-import '../widgets/type_roles.dart';
 import 'mask_page.dart';
 import 'talk_page.dart';
 import 'talks_page.dart';
@@ -46,7 +45,7 @@ class TodayPage extends StatelessWidget {
                 DoodleIcon(day ? Doodle.sun : Doodle.moon, size: 32, color: context.colors.pencil, tilt: -10),
               ],
             ),
-            Text(MaterialLocalizations.of(context).formatFullDate(now), style: caption(context)),
+            Text(MaterialLocalizations.of(context).formatFullDate(now), style: context.type.caption),
             const SizedBox(height: 24),
             if (missing.isNotEmpty) ...[
               Door(
@@ -79,13 +78,13 @@ class TodayPage extends StatelessWidget {
               const SizedBox(height: 24),
               const SectionHead('being written'),
               for (final t in busy)
-                ContentRow(t.title, meta: t.step ?? 'working', onTap: () => pushPage(context, TalkPage(talkId: t.id))),
+                ItemRow(t.title, meta: t.step ?? 'working', below: const HandProgress(fraction: null), onTap: () => pushPage(context, TalkPage(talkId: t.id))),
             ],
             if (brief.recent.isNotEmpty) ...[
               const SizedBox(height: 24),
               const SectionHead('new notes'),
               for (final t in brief.recent)
-                ContentRow(t.title, meta: _recentMeta(t), onTap: () => pushPage(context, TalkPage(talkId: t.id))),
+                ItemRow(t.title, meta: _recentMeta(t), onTap: () => pushPage(context, TalkPage(talkId: t.id))),
             ],
             if (brief.undated.isNotEmpty) ...[
               const SizedBox(height: 24),

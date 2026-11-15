@@ -8,7 +8,6 @@ import '../data/models.dart';
 import '../logic/audio_io.dart';
 import '../logic/processor.dart';
 import '../widgets/talk_bits.dart';
-import '../widgets/type_roles.dart';
 import 'record_page.dart';
 import 'talk_page.dart';
 
@@ -121,10 +120,10 @@ class _TalksPageState extends State<TalksPage> {
           )
         else ...[
           for (final t in talks)
-            ContentRow(
+            ItemRow(
               t.title,
               meta: talkMeta(data, t),
-              alert: t.status == TalkStatus.failed,
+              leading: t.status == TalkStatus.failed ? DoodleIcon(Doodle.exclaim, size: 24, color: context.colors.redPen, semanticLabel: 'stopped') : null,
               selected: context.isWide && t.id == _open,
               onTap: () => _show(t),
             ),

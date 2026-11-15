@@ -5,7 +5,6 @@ import '../app_config.dart';
 import '../data/burrow_data.dart';
 import '../data/models.dart';
 import '../logic/ask_agent.dart';
-import '../widgets/type_roles.dart';
 import 'talk_page.dart';
 
 /// "ask Burrow": a small model on this device looks things up in your talks
@@ -111,14 +110,14 @@ class _AskPageState extends State<AskPage> {
               ),
               const SizedBox(height: 12),
               const SizedBox(height: 8),
-              SelectableText(ask.answer!, style: reading(context)),
+              Prose(ask.answer!),
               const SizedBox(height: 8),
               OnDeviceStamp(text: ask.demo ? 'demo engine: Burrow\'s tools, not a model' : 'answered on this device'),
               if (ask.sources.isNotEmpty) ...[
                 const SizedBox(height: 24),
                 const SectionHead('from'),
                 for (final src in ask.sources)
-                  ContentRow(
+                  ItemRow(
                     src.title,
                     meta: [if (src.at != null) 'at ${clock(src.at!)}', if (src.quote != null) '"${src.quote}"'].join(' · '),
                     onTap: data.talk(src.talkId) == null ? null : () => pushPage(context, TalkPage(talkId: src.talkId)),
@@ -167,7 +166,7 @@ class _AskPageState extends State<AskPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(st.label, style: rowTitle(context)),
+                Text(st.label, style: context.type.rowTitle),
                 if (st.args.isNotEmpty) Text(st.args, style: context.type.mono),
                 if (st.summary != null) Meta(st.summary!),
               ],
