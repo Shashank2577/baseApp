@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.47.9
+
+jobs:
+  check:
+    name: Platform check, analyze, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Generated files are up to date
+        run: ./base gen --check
+      - name: Every app follows the platform rules
+        run: ./base check
+      - run: flutter analyze
+      - name: Tests (every package and app)
+        run: flutter test packages/base_design packages/base_models packages/base_core apps/*
+      - name: Web model store in Chrome (streaming into Cache Storage, checksum, cancel)
+        working-directory: packages/base_models
+        run: flutter test --platform chrome test/web_store_test.dart
+      - name: Tool tests
+        working-directory: tools/base_tool
+        run: dart test
+
+  build-linux-hosted:
+    name: Android, web, Linux (${{ matrix.app }})
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [starter]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev
+      - run: flutter pub get
+      - working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build apk --debug
+          flutter build web --release
+          flutter build linux --release
+
+  build-apple:
+    name: macOS, iOS (${{ matrix.app }})
+    needs: check
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [starter]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build macos --debug
+          flutter build ios --debug --no-codesign
+
+  build-windows:
+    name: Windows (${{ matrix.app }})
+    needs: check
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [starter]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - working-directory: apps/${{ matrix.app }}
+        run: flutter build windows --debug

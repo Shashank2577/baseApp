@@ -1,0 +1,184 @@
+name: Release
+
+# Tag <app>-v<version> (e.g. starter-v1.2.0), or run by hand with app, version
+# and publish: the publish job then creates the tag and the release itself.
+on:
+  push:
+    tags: ['*-v*']
+  workflow_dispatch:
+    inputs:
+      app:
+        description: App folder under apps/
+        required: true
+        default: starter
+      version:
+        description: Version (1.2.0)
+        required: true
+      publish:
+        description: Create a GitHub release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: 3.47.9
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.v.outputs.app }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        shell: bash
+        # Inputs arrive as environment variables, never pasted into the script.
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_APP: ${{ inputs.app }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$EVENT" = "push" ]; then
+            TAG="$GITHUB_REF_NAME"; APP="${TAG%-v*}"; VERSION="${TAG##*-v}"
+          else
+            APP="$INPUT_APP"; VERSION="$INPUT_VERSION"
+          fi
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Bad version: $VERSION"; exit 1; }
+          [[ "$APP" =~ ^[a-z][a-z0-9_]+$ ]] || { echo "Bad app: $APP"; exit 1; }
+          echo "app=$APP" >> "$GITHUB_OUTPUT"; echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
+      - run: flutter pub get
+      - run: ./base gen --check && ./base check
+      - run: flutter analyze && flutter test packages/base_design packages/base_models packages/base_core packages/base_ai apps/${{ needs.prepare.outputs.app }}
+
+  android-web-linux:
+    needs: [prepare, check]
+    runs-on: ubuntu-latest
+    env:
+      APP: ${{ needs.prepare.outputs.app }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev
+      - run: flutter pub get
+      - name: Android (signed with the vendor's shared key when the secrets exist)
+        working-directory: apps/${{ env.APP }}
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          SUFFIX=""
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          else
+            SUFFIX="-TESTKEY" # Signed with the public vendor test key (signing/README.md).
+          fi
+          flutter build apk --release --target-platform android-arm64 --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
+          flutter build appbundle --release --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/out/$APP-$VERSION-android-arm64$SUFFIX.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/out/$APP-$VERSION-android$SUFFIX.aab"
+      - name: Web and Linux
+        working-directory: apps/${{ env.APP }}
+        run: |
+          flutter build web --release --base-href "/$APP/" --build-name "$VERSION"
+          flutter build linux --release --build-name "$VERSION"
+          tar -czf "$GITHUB_WORKSPACE/out/$APP-$VERSION-web.tar.gz" -C build/web .
+          tar -czf "$GITHUB_WORKSPACE/out/$APP-$VERSION-linux-x64.tar.gz" -C build/linux/x64/release/bundle .
+      - uses: actions/upload-artifact@v4
+        with: { name: linux-hosted, path: out/*, if-no-files-found: error }
+
+  # Unsigned iOS .ipa and macOS zip (Apple silicon), with the real engines.
+  apple:
+    needs: [prepare, check]
+    uses: ./.github/workflows/apple-build.yml
+    with:
+      app: ${{ needs.prepare.outputs.app }}
+      version: ${{ needs.prepare.outputs.version }}
+
+  windows:
+    needs: [prepare, check]
+    runs-on: windows-latest
+    env:
+      APP: ${{ needs.prepare.outputs.app }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
+      - run: flutter pub get
+      - name: Windows
+        working-directory: apps/${{ env.APP }}
+        shell: bash
+        run: |
+          flutter build windows --release --build-name "$VERSION" --build-number "$GITHUB_RUN_NUMBER"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          7z a "$GITHUB_WORKSPACE/out/$APP-$VERSION-windows-x64-UNSIGNED.zip" ./build/windows/x64/runner/Release/*
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: out/*, if-no-files-found: error }
+
+  publish:
+    needs: [prepare, android-web-linux, apple, windows]
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    env:
+      APP: ${{ needs.prepare.outputs.app }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Checksums and notes
+        id: notes
+        shell: bash
+        run: |
+          cd out
+          rm -f ./*.sha256
+          sha256sum ./* > "$RUNNER_TEMP/SHA256SUMS.txt"
+          for f in *; do sha256sum "$f" > "$f.sha256"; done
+          mv "$RUNNER_TEMP/SHA256SUMS.txt" .
+          ls -la
+          PRE=false
+          if ls | grep -qiE 'unsigned|debug|testkey' || [[ "$VERSION" == *-* ]]; then PRE=true; fi
+          echo "prerelease=$PRE" >> "$GITHUB_OUTPUT"
+          {
+            echo "$APP $VERSION. Verify downloads with SHA256SUMS.txt (or the .sha256 file next to each)."
+            echo
+            if [ -f "$GITHUB_WORKSPACE/apps/$APP/RELEASE_NOTES.md" ]; then cat "$GITHUB_WORKSPACE/apps/$APP/RELEASE_NOTES.md"; echo; fi
+            echo "## Installing test builds"
+            echo
+            echo '- **iPhone** (`*-ios-unsigned.ipa`): sideload with AltStore or Sideloadly and a free Apple ID. A free Apple ID signs the app for 7 days; after that it stops opening until you sideload it again (AltStore can refresh it).'
+            echo '- **Mac** (`*-macos-arm64-unsigned.zip`, Apple silicon only): unzip, move the app to Applications, then right-click it and choose Open the first time (or run `xattr -dr com.apple.quarantine /Applications/<App>.app`). It is not notarised.'
+            echo '- **Models across apps on iPhone and Mac** are shared through the App Group `group.com.showcase.shared`, which needs a paid Apple developer team. Without it each app keeps its models in its own folder, so another app downloads them again.'
+            echo '- **Android** (`*-TESTKEY.apk`): signed with the public vendor test key; fine for testing, never for a store.'
+            echo '- **Windows, Linux, web**: run the demo engines (labelled as demo); the on-device models run on iPhone, Mac and Android.'
+            if [ "$PRE" = true ]; then echo; echo "Some artifacts are unsigned or test-signed: this is a pre-release, for testing only."; fi
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+      # Creates the tag on this commit as well, so a run by hand needs no pushed tag.
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.APP }}-v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ env.APP }} ${{ env.VERSION }}
+          body_path: ${{ runner.temp }}/notes.md
+          prerelease: ${{ steps.notes.outputs.prerelease }}
+          files: out/*
+          fail_on_unmatched_files: true

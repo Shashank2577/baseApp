@@ -1,0 +1,109 @@
+name: Apple build
+
+# Unsigned iOS (.ipa, for sideloading with AltStore or Sideloadly and a free
+# Apple ID) and macOS (.app in a zip, Apple silicon) builds of one app, with
+# the real on-device engines (base_ai_native's Swift packages: LiteRT-LM and
+# desert-ant-core). release.yml calls this; run it by hand to try a build.
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: App folder under apps/
+        type: string
+        required: true
+      version:
+        description: Version (1.2.0)
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      app:
+        description: App folder under apps/
+        required: true
+        default: burrow
+      version:
+        description: Version (1.2.0)
+        required: true
+        default: 0.0.0-dev
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.47.9
+
+jobs:
+  apple:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      # Swift packages are fetched by git; skip LFS payloads (none are needed to build).
+      GIT_LFS_SKIP_SMUDGE: '1'
+      APP: ${{ inputs.app }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: App and version
+        shell: bash
+        run: |
+          [[ "$APP" =~ ^[a-z][a-z0-9_]+$ ]] || { echo "Bad app: $APP"; exit 1; }
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Bad version: $VERSION"; exit 1; }
+          test -d "apps/$APP"
+
+      # desert-ant-core needs Swift tools 6.2 (Xcode 26).
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: |
+          xcodebuild -version
+          flutter config --enable-swift-package-manager
+          flutter pub get
+
+      - name: iOS (unsigned .ipa)
+        working-directory: apps/${{ inputs.app }}
+        shell: bash
+        run: |
+          # The build name may not carry a pre-release suffix on Apple platforms.
+          NAME="${VERSION%%-*}"
+          flutter build ios --release --no-codesign --build-name "$NAME" --build-number "$GITHUB_RUN_NUMBER"
+          rm -rf Payload && mkdir Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          echo "Frameworks in the app:" && ls Payload/Runner.app/Frameworks || true
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          zip -qry "$GITHUB_WORKSPACE/out/$APP-$VERSION-ios-unsigned.ipa" Payload
+          rm -rf Payload build/ios
+
+      - name: macOS (.app, Apple silicon)
+        working-directory: apps/${{ inputs.app }}
+        shell: bash
+        run: |
+          NAME="${VERSION%%-*}"
+          # Unsigned (ad-hoc) Mac apps can't hold an App Group: macOS refuses to
+          # launch an ad-hoc app with that entitlement. Drop it for this build; the
+          # model store then uses the app's own folder (models aren't shared).
+          /usr/libexec/PlistBuddy -c "Delete :com.apple.security.application-groups" macos/Runner/Release.entitlements || true
+          flutter build macos --release --build-name "$NAME" --build-number "$GITHUB_RUN_NUMBER"
+          APP_DIR=$(ls -d build/macos/Build/Products/Release/*.app | head -1)
+          echo "Frameworks in the app:" && ls "$APP_DIR/Contents/Frameworks" || true
+          # Flutter signs ad hoc ("sign to run locally"); show what the app carries.
+          codesign -dv --entitlements - "$APP_DIR" 2>&1 | head -40 || true
+          lipo -archs "$APP_DIR/Contents/MacOS/"* || true
+          ditto -c -k --keepParent "$APP_DIR" "$GITHUB_WORKSPACE/out/$APP-$VERSION-macos-arm64-unsigned.zip"
+
+      - name: Checksums
+        working-directory: out
+        run: for f in *; do shasum -a 256 "$f" > "$f.sha256"; done; ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apple
+          path: out/*
+          if-no-files-found: error
