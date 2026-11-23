@@ -124,7 +124,7 @@ Color seriesColor(int index, [Brightness brightness = Brightness.light]) {
 ///
 /// Voices come in two styles. With a handwriting voice ([isHand]: neat hand,
 /// loose hand, all handwritten; the default) names, row titles and tags are
-/// hand-lettered too. With a formal voice (friendly, formal) everything you
+/// hand-lettered too. With a formal voice (friendly, crisp) everything you
 /// read is plain type and only headings and buttons are hand-lettered.
 @immutable
 class Voice {

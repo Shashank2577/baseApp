@@ -65,7 +65,7 @@ Headlines are always Caveat. In *settings → writing* the user picks **handwrit
 | handwritten | loose hand | Shantell Sans, informality 100 |
 | handwritten | all handwritten | Patrick Hand |
 | formal | friendly | Nunito 400/600 |
-| formal | formal | Inter 400/600 |
+| formal | crisp | Inter 400/600 |
 
 A voice the user picked is never changed for them. The one exception undoes 2.0.0, which had moved every install to friendly: settings stored with `typeVersion: 2` and friendly go back to neat hand once (`BaseSettings`, `typeVersion: 3`).
 
